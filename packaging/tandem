@@ -1,4 +1,4 @@
 #!/bin/sh
-# Starts Mendu. Quit with Ctrl+C here, or "Quit Mendu" in the page's profile menu.
+# Starts Tandem. Quit with Ctrl+C here, or "Quit Tandem" in the page's profile menu.
 here=$(dirname "$(readlink -f "$0")")
 exec "$here/runtime/node" "$here/app/local/dist/src/main.js" "$@"

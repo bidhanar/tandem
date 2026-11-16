@@ -80,7 +80,7 @@ export function createServer(services: Services): http.Server {
 
   // ---- App state ----
 
-  route('GET', /^\/api\/ping$/, () => ({ app: 'mendu' }));
+  route('GET', /^\/api\/ping$/, () => ({ app: 'tandem' }));
 
   route('GET', /^\/api\/state$/, () => ({
     profiles: watch.profiles().map((p) => ({ id: p.id, name: p.name, avatar: p.avatar })),
@@ -367,7 +367,7 @@ export function createServer(services: Services): http.Server {
       return;
     }
     // Changes need a custom header, which other websites can't send here.
-    if (method !== 'GET' && method !== 'HEAD' && request.headers['x-mendu'] !== '1') {
+    if (method !== 'GET' && method !== 'HEAD' && request.headers['x-tandem'] !== '1') {
       response.writeHead(403).end();
       return;
     }
@@ -395,7 +395,7 @@ export function createServer(services: Services): http.Server {
         if (error instanceof ApiError) sendJson(response, error.status, { error: error.message });
         else {
           console.error(error);
-          sendJson(response, 500, { error: 'Something went wrong in Mendu.' });
+          sendJson(response, 500, { error: 'Something went wrong in Tandem.' });
         }
       }
       return;

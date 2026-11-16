@@ -1,8 +1,8 @@
 {
-  "name": "mendu-server",
+  "name": "tandem-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Mendu's sync server: rooms, clock sync and the shared playback state.",
+  "description": "Tandem's sync server: rooms, clock sync and the shared playback state.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "engines": { "node": ">=20.11" },

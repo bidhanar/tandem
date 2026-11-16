@@ -4,7 +4,7 @@
 # minute to wake when someone next opens a room.
 services:
   - type: web
-    name: mendu-sync
+    name: tandem-sync
     runtime: docker
     plan: free
     rootDir: server

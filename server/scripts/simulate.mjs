@@ -57,8 +57,8 @@ async function person(name, url, loadMs) {
   const offset = bestOffset(samples);
 
   const me = { name, socket, ask, player: new PretendPlayer(loadMs), changes: 0, id: `sim-${name}-12345678` };
-  // MENDU_TRACE=1 prints every command to the players and every message sent.
-  const trace = (...parts) => { if (process.env.MENDU_TRACE) console.log(`  [${(performance.now() / 1000).toFixed(2)}] ${name}:`, ...parts); };
+  // TANDEM_TRACE=1 prints every command to the players and every message sent.
+  const trace = (...parts) => { if (process.env.TANDEM_TRACE) console.log(`  [${(performance.now() / 1000).toFixed(2)}] ${name}:`, ...parts); };
   for (const command of ['load', 'play', 'pause', 'seek', 'setRate']) {
     const original = me.player[command].bind(me.player);
     me.player[command] = (...args) => { trace('player', command, ...args.map((a) => (typeof a === 'number' ? a.toFixed(2) : a.mediaId))); return original(...args); };
@@ -185,7 +185,8 @@ server = createSyncServer();
 await new Promise((resolve) => server.httpServer.listen(port, resolve));
 await sleep(9000);
 check('after a server restart both are back in the same room', ana.rejoined?.ok && ben.rejoined?.ok
-  && ana.rejoined.room.code === created.room.code && ben.rejoined.room.members.length === 2);
+  && ana.rejoined.room.code === created.room.code && ben.rejoined.room.code === created.room.code
+  && server.rooms.get(created.room.code)?.members.size === 2);
 check('...and carry on from where they were, together', both('playing') && apart() < 0.5
   && ben.player.read().position > beforeRestart, `${apart().toFixed(2)} s apart`);
 

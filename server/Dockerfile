@@ -1,6 +1,6 @@
-# Mendu sync server. Build from the server/ folder:
-#   docker build -t mendu-server server
-#   docker run -p 8686:8686 mendu-server
+# Tandem sync server. Build from the server/ folder:
+#   docker build -t tandem-server server
+#   docker run -p 8686:8686 tandem-server
 
 FROM node:22-alpine AS build
 WORKDIR /app

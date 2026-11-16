@@ -99,7 +99,7 @@ test('isFinished: last 5% or last 30 seconds', () => {
 });
 
 test('watch history survives a restart', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mendu-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-test-'));
   const file = path.join(dir, 'watch_state.json');
   const first = new WatchState(file);
   const profile = first.addProfile('Ana', 3);
@@ -119,7 +119,7 @@ test('watch history survives a restart', () => {
 });
 
 test('scan finds videos, skipping small files, hidden folders and other file types', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mendu-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-test-'));
   fs.mkdirSync(path.join(dir, 'Show', 'Season 1'), { recursive: true });
   fs.mkdirSync(path.join(dir, '.hidden'));
   fs.writeFileSync(path.join(dir, 'Show', 'Season 1', 'Show.S01E01.mkv'), Buffer.alloc(2000));

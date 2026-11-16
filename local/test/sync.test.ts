@@ -29,7 +29,7 @@ test('media ids round-trip and reject anything else', () => {
 });
 
 test('the hash covers the first and last 4 MB, and the whole of a small file', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mendu-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-test-'));
   const big = Buffer.alloc(9 * 1024 * 1024, 1);
   const file = path.join(dir, 'a.bin');
   fs.writeFileSync(file, big);
@@ -52,8 +52,8 @@ test('the hash covers the first and last 4 MB, and the whole of a small file', a
 });
 
 test('matching: the same file, another copy of the same length, or nothing', async () => {
-  const mine = fs.mkdtempSync(path.join(os.tmpdir(), 'mendu-mine-'));
-  const theirs = fs.mkdtempSync(path.join(os.tmpdir(), 'mendu-theirs-'));
+  const mine = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-mine-'));
+  const theirs = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-theirs-'));
   const film = Buffer.alloc(5000, 7);
 
   const sent = fileOn(mine, 'Film.2010.mkv', film, 5400);

@@ -24,7 +24,7 @@ export function createSyncServer() {
   const httpServer = http.createServer((request, response) => {
     // A plain page so a host's health check (and a curious visitor) gets an answer.
     response.writeHead(200, { 'Content-Type': 'text/plain' });
-    response.end('Mendu sync server\n');
+    response.end('Tandem sync server\n');
   });
   // The page is served from each person's own computer (http://127.0.0.1),
   // so any origin may connect. Nothing here relies on cookies.

@@ -19,17 +19,17 @@ export type AppPaths = {
   dataDir: string; // library cache, history, thumbnails
 };
 
-/** Where Mendu keeps its files on this computer. */
+/** Where Tandem keeps its files on this computer. */
 export function defaultPaths(): AppPaths {
   const home = os.homedir();
   if (process.platform === 'win32') {
     const roaming = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
     const local = process.env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local');
-    return { configFile: path.join(roaming, 'Mendu', 'config.json'), dataDir: path.join(local, 'Mendu') };
+    return { configFile: path.join(roaming, 'Tandem', 'config.json'), dataDir: path.join(local, 'Tandem') };
   }
   const config = process.env.XDG_CONFIG_HOME || path.join(home, '.config');
   const data = process.env.XDG_DATA_HOME || path.join(home, '.local', 'share');
-  return { configFile: path.join(config, 'mendu', 'config.json'), dataDir: path.join(data, 'mendu') };
+  return { configFile: path.join(config, 'tandem', 'config.json'), dataDir: path.join(data, 'tandem') };
 }
 
 /**

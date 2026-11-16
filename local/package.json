@@ -1,8 +1,8 @@
 {
-  "name": "mendu-local",
+  "name": "tandem-local",
   "version": "0.1.0",
   "private": true,
-  "description": "Mendu's local program: serves the web page, finds your videos and drives VLC.",
+  "description": "Tandem's local program: serves the web page, finds your videos and drives VLC.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "engines": {

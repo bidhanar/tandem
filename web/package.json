@@ -1,7 +1,7 @@
 {
-  "name": "mendu-web",
+  "name": "tandem-web",
   "private": true,
-  "description": "Mendu's page. Plain files, no build step; this file only exists so the sync logic can be unit tested.",
+  "description": "Tandem's page. Plain files, no build step; this file only exists so the sync logic can be unit tested.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {

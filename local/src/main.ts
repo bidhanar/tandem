@@ -1,4 +1,4 @@
-// Mendu's local program. Run it and your browser opens the library page.
+// Tandem's local program. Run it and your browser opens the library page.
 //
 //   npm start -- [--port <port>] [--no-browser]
 
@@ -51,8 +51,8 @@ const server = createServer({
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {
-    // Most likely Mendu is already running: just show it.
-    console.log(`Port ${port} is in use. If Mendu is already running, it's at ${url}`);
+    // Most likely Tandem is already running: just show it.
+    console.log(`Port ${port} is in use. If Tandem is already running, it's at ${url}`);
     if (!args.includes('--no-browser')) openBrowser(url);
     process.exit(0);
   }
@@ -60,7 +60,7 @@ server.on('error', (error: NodeJS.ErrnoException) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Mendu is running at ${url} (Ctrl+C to quit)`);
+  console.log(`Tandem is running at ${url} (Ctrl+C to quit)`);
   library.rescan(scanOptions(config));
   if (!args.includes('--no-browser')) openBrowser(url);
 });

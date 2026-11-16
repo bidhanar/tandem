@@ -1,4 +1,4 @@
-# Mendu sync protocol
+# Tandem sync protocol
 
 The sync server (`server/`) holds each room's playback state and relays
 changes. Clients connect with Socket.IO. Video and audio never pass through

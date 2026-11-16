@@ -24,10 +24,10 @@ const remember = {
 
 /** This browser's permanent id in rooms, so a reconnect is recognised as the same person. */
 function clientId() {
-  let id = remember.get('mendu.client');
+  let id = remember.get('tandem.client');
   if (!id) {
     id = crypto.randomUUID();
-    remember.set('mendu.client', id);
+    remember.set('tandem.client', id);
   }
   return id;
 }
@@ -160,7 +160,7 @@ async function enterRoom(event, payload, rejoining = false) {
 
   const fresh = !T.room;
   T.room = { code: answer.room.code, members: answer.room.members, you: answer.room.you };
-  remember.set('mendu.room', T.room.code);
+  remember.set('tandem.room', T.room.code);
   // The local program follows the same room, so it can keep VLC in step.
   tellLocal('join', { server: T.serverUrl, code: T.room.code, client: T.room.you, name: T.name, profile: T.profileId });
   if (fresh) {
@@ -178,7 +178,7 @@ function leaveRoom() {
   T.local = null;
   T.socket?.emit('room:leave');
   disconnect();
-  remember.remove('mendu.room');
+  remember.remove('tandem.room');
   T.room = null;
   T.state = null;
   T.queue = [];
@@ -209,7 +209,7 @@ function membersChanged(members, what) {
 async function tellLocal(what, body = {}) {
   try {
     const response = await fetch(`/api/together/${what}`, {
-      method: 'POST', headers: { 'X-Mendu': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'X-Tandem': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const data = await response.json();
     if (!response.ok) showError(data.error);
@@ -380,7 +380,7 @@ const YOUTUBE_ERRORS = {
   100: 'This video was removed or is private.',
   101: "The owner of this video doesn't allow it to be played outside YouTube. Pick another video.",
   150: "The owner of this video doesn't allow it to be played outside YouTube. Pick another video.",
-  153: 'YouTube rejected the player (error 153). This is a problem with Mendu, not the video.',
+  153: 'YouTube rejected the player (error 153). This is a problem with Tandem, not the video.',
 };
 
 /** What the sync logic calls to control the player. */
@@ -434,7 +434,7 @@ function drawLobby() {
     <div class="tg-lobby">
       <h1>Watch Together</h1>
       <p class="hint">Start a room and send the code to your partner, or type in the code they sent you.
-        Each of you plays the video on your own device; Mendu keeps them in step.</p>
+        Each of you plays the video on your own device; Tandem keeps them in step.</p>
       <div class="tg-cards">
         <section class="tg-card">
           <h2>Start a room</h2>
@@ -566,7 +566,7 @@ function drawLocal() {
             <li><span><code>${esc(f.name)}</code> · ${megabytes(f.size)}</span>
               <button class="btn btn-secondary tg-small" data-tg="use-file" data-file="${f.file_id}">Play this one</button></li>`).join('')}</ul>`
         : `<p>That file isn't in your library (${expected}). You both need the same file. If you have it, add its folder
-            in <a href="#/settings">Settings</a>; Mendu finds it by its contents, whatever it's called.</p>`;
+            in <a href="#/settings">Settings</a>; Tandem finds it by its contents, whatever it's called.</p>`;
       break;
     case 'closed':
       body = `<p>VLC was closed on this computer. Your partner can keep watching.</p>
@@ -701,7 +701,7 @@ window.Together = {
 
     if (!T.room && !root.querySelector('.tg-lobby')) drawLobby();
     // Reloading the page keeps you in your room.
-    const saved = remember.get('mendu.room');
+    const saved = remember.get('tandem.room');
     if (!T.room && saved && !T.socket && T.serverUrl) enterRoom('room:join', { code: saved }, true);
     layout();
   },

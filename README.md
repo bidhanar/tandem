@@ -1,4 +1,4 @@
-# Mendu
+# Tandem
 
 Watch YouTube videos and your own video files together with someone far
 away, in sync. Each person plays their own copy; only play, pause and seek
@@ -38,7 +38,7 @@ npm start
 Your browser opens `http://127.0.0.1:8585/`. The first run scans your home
 folder for videos larger than 200 MB; change the folders and the size limit
 in Settings (profile menu, top right). Quit with Ctrl+C in the terminal or
-"Quit Mendu" in the profile menu.
+"Quit Tandem" in the profile menu.
 
 The page only works from the same computer. Nothing is uploaded anywhere.
 
@@ -54,7 +54,7 @@ either side apply to both.
   the player switches both of you to it.
 - **Your own videos:** while in the room, press Play on a video in your
   library. It opens in VLC on both computers. You both need the same file;
-  Mendu recognises it by its contents, whatever it is called. If the other
+  Tandem recognises it by its contents, whatever it is called. If the other
   person only has a different copy of the same length, they can play that
   one after a warning that sync may be off.
 
@@ -66,7 +66,7 @@ To run it on your own computer (enough to try things out on one machine):
 ```sh
 cd server
 npm install
-npm start          # listens on port 8686, which is Mendu's default setting
+npm start          # listens on port 8686, which is Tandem's default setting
 ```
 
 For two people on different networks it has to run somewhere both can
@@ -79,14 +79,14 @@ the server sleeps when unused, so the first connection can take a minute.
 ## Send it to someone
 
 ```sh
-MENDU_SYNC_SERVER=https://your-server.example scripts/package.sh
+TANDEM_SYNC_SERVER=https://your-server.example scripts/package.sh
 ```
 
-builds `release/mendu-<version>-windows-x64.zip` and
-`release/mendu-<version>-linux-x64.tar.gz`. Each holds Mendu and its own
+builds `release/tandem-<version>-windows-x64.zip` and
+`release/tandem-<version>-linux-x64.tar.gz`. Each holds Tandem and its own
 copy of Node.js, so the other person only needs VLC: they unzip it and
-double-click `Mendu.bat` (Windows) or run `./mendu` (Linux). `READ ME.txt`
-inside tells them the rest. `MENDU_SYNC_SERVER` is optional; it presets the
+double-click `Tandem.bat` (Windows) or run `./tandem` (Linux). `READ ME.txt`
+inside tells them the rest. `TANDEM_SYNC_SERVER` is optional; it presets the
 sync server address so they don't have to type it.
 
 ## Develop

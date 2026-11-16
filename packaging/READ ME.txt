@@ -1,4 +1,4 @@
-MENDU
+TANDEM
 Watch YouTube and your own videos together with someone far away.
 
 BEFORE YOU START
@@ -6,13 +6,13 @@ BEFORE YOU START
   Optional: FFmpeg, for pictures of your videos in the library.
 
 START
-  Windows:  double-click Mendu.bat
-            A black window opens and stays open; that is Mendu running.
+  Windows:  double-click Tandem.bat
+            A black window opens and stays open; that is Tandem running.
             Windows may ask whether to allow it. Choose "Run anyway" / "Allow".
-  Linux:    run ./mendu in a terminal
+  Linux:    run ./tandem in a terminal
             (also: sudo apt install vlc ffmpeg)
 
-  Your web browser opens with your video library. The first time, Mendu
+  Your web browser opens with your video library. The first time, Tandem
   looks through your home folder for videos larger than 200 MB. Change the
   folders in Settings (profile picture, top right).
 
@@ -30,9 +30,9 @@ WATCH TOGETHER
 
 QUIT
   Close the black window (Windows), press Ctrl+C in the terminal (Linux),
-  or choose "Quit Mendu" from the profile menu in the page.
+  or choose "Quit Tandem" from the profile menu in the page.
 
 Nothing is uploaded. Your videos never leave your computer; only play,
 pause and seek messages go between you.
 
-Mendu is free software under the GNU GPL version 3 or later (LICENSE.txt).
+Tandem is free software under the GNU GPL version 3 or later (LICENSE.txt).

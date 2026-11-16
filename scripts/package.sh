@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Builds the packages you send to someone: one folder that holds Mendu and
+# Builds the packages you send to someone: one folder that holds Tandem and
 # its own copy of Node.js, so they don't have to install Node.
 #
 #   scripts/package.sh
-#   MENDU_SYNC_SERVER=https://your-server.example scripts/package.sh
+#   TANDEM_SYNC_SERVER=https://your-server.example scripts/package.sh
 #
 # Produces, in release/:
-#   mendu-<version>-windows-x64.zip   unzip, then double-click Mendu.bat
-#   mendu-<version>-linux-x64.tar.gz  extract, then run ./mendu
+#   tandem-<version>-windows-x64.zip   unzip, then double-click Tandem.bat
+#   tandem-<version>-linux-x64.tar.gz  extract, then run ./tandem
 #
-# MENDU_SYNC_SERVER sets the sync server address the package starts with, so
+# TANDEM_SYNC_SERVER sets the sync server address the package starts with, so
 # the other person doesn't have to type it into Settings.
 #
 # Needs: node, npm, curl, zip, tar, xz, sha256sum. Works on Linux.
@@ -26,7 +26,7 @@ STAGE=$OUT/stage
 rm -rf "$STAGE"
 mkdir -p "$CACHE" "$STAGE/app/local"
 
-echo "== Building Mendu $VERSION"
+echo "== Building Tandem $VERSION"
 (cd "$ROOT/local" && npm ci --no-audit --no-fund >/dev/null && npx tsc)
 cp -r "$ROOT/local/dist" "$ROOT/local/package.json" "$ROOT/local/package-lock.json" "$STAGE/app/local/"
 rm -rf "$STAGE/app/local/dist/test"
@@ -34,9 +34,9 @@ rm -rf "$STAGE/app/local/dist/test"
 mkdir "$STAGE/app/web"
 cp "$ROOT"/web/*.html "$ROOT"/web/*.js "$ROOT"/web/*.css "$ROOT"/web/*.svg "$ROOT/web/package.json" "$STAGE/app/web/"
 cp "$ROOT/LICENSE" "$STAGE/LICENSE.txt"
-if [ -n "${MENDU_SYNC_SERVER:-}" ]; then
-  printf '{ "sync_server": "%s" }\n' "$MENDU_SYNC_SERVER" > "$STAGE/app/defaults.json"
-  echo "   sync server preset: $MENDU_SYNC_SERVER"
+if [ -n "${TANDEM_SYNC_SERVER:-}" ]; then
+  printf '{ "sync_server": "%s" }\n' "$TANDEM_SYNC_SERVER" > "$STAGE/app/defaults.json"
+  echo "   sync server preset: $TANDEM_SYNC_SERVER"
 fi
 
 # Downloads one Node.js archive (once) and checks it against Node's published checksum.
@@ -52,26 +52,26 @@ fetch_node() {
 }
 
 echo "== Windows package"
-WIN=$OUT/Mendu-windows
+WIN=$OUT/Tandem-windows
 rm -rf "$WIN" && mkdir -p "$WIN/runtime"
 cp -r "$STAGE/app" "$STAGE/LICENSE.txt" "$WIN/"
 fetch_node "node-$NODE_VERSION-win-x64.zip"
 unzip -q -j "$CACHE/node-$NODE_VERSION-win-x64.zip" "node-$NODE_VERSION-win-x64/node.exe" -d "$WIN/runtime"
-cp "$ROOT/packaging/Mendu.bat" "$ROOT/packaging/READ ME.txt" "$WIN/"
+cp "$ROOT/packaging/Tandem.bat" "$ROOT/packaging/READ ME.txt" "$WIN/"
 # Windows wants its own line endings in .bat and .txt files.
-sed -i 's/$/\r/' "$WIN/Mendu.bat" "$WIN/READ ME.txt"
-rm -f "$OUT/mendu-$VERSION-windows-x64.zip"
-(cd "$OUT" && mv Mendu-windows Mendu && zip -qr "mendu-$VERSION-windows-x64.zip" Mendu && rm -rf Mendu)
+sed -i 's/$/\r/' "$WIN/Tandem.bat" "$WIN/READ ME.txt"
+rm -f "$OUT/tandem-$VERSION-windows-x64.zip"
+(cd "$OUT" && mv Tandem-windows Tandem && zip -qr "tandem-$VERSION-windows-x64.zip" Tandem && rm -rf Tandem)
 
 echo "== Linux package"
-LIN=$OUT/Mendu
+LIN=$OUT/Tandem
 mkdir -p "$LIN/runtime"
 cp -r "$STAGE/app" "$STAGE/LICENSE.txt" "$LIN/"
 fetch_node "node-$NODE_VERSION-linux-x64.tar.xz"
 tar -xJf "$CACHE/node-$NODE_VERSION-linux-x64.tar.xz" -C "$LIN/runtime" --strip-components=2 "node-$NODE_VERSION-linux-x64/bin/node"
-cp "$ROOT/packaging/mendu" "$ROOT/packaging/READ ME.txt" "$LIN/"
-chmod +x "$LIN/mendu"
-(cd "$OUT" && tar -czf "mendu-$VERSION-linux-x64.tar.gz" Mendu && rm -rf Mendu)
+cp "$ROOT/packaging/tandem" "$ROOT/packaging/READ ME.txt" "$LIN/"
+chmod +x "$LIN/tandem"
+(cd "$OUT" && tar -czf "tandem-$VERSION-linux-x64.tar.gz" Tandem && rm -rf Tandem)
 
 rm -rf "$STAGE"
 echo "== Done"

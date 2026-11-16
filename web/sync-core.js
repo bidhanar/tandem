@@ -1,4 +1,4 @@
-// Mendu's sync logic. No page, network or timers in here: the caller supplies
+// Tandem's sync logic. No page, network or timers in here: the caller supplies
 // a player, a clock and a send function, so everything can be tested with fakes.
 //
 // The player is anything with:

@@ -1,6 +1,6 @@
 # Manual test checklist
 
-Start Mendu with `cd local && npm install && npm start`.
+Start Tandem with `cd local && npm install && npm start`.
 
 ## Library
 

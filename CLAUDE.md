@@ -1,9 +1,10 @@
-# Mendu
+# Tandem
 
 Two people in different places watch the same YouTube video or the same local
 file in sync. Each device plays its own copy; only small control messages go
 through a sync server. Original spec: `docs/spec.md` (it calls the project
-"SyncUs" and describes a Flutter app). The decisions below replaced much of
+"SyncUs" and describes a Flutter app; the project was later called Mendu,
+now Tandem). The decisions below replaced much of
 it and win over it.
 
 ## Layout
@@ -52,9 +53,9 @@ properties).
   password; play, pause, seek and rate go through it.
 - `server.ts`: static files, thumbnails and the `/api/*` routes. Refuses
   requests whose Host isn't localhost/127.0.0.1, and changes without the
-  `X-Mendu: 1` header.
-- Data: `~/.config/mendu/config.json` and `~/.local/share/mendu/` on Linux,
-  `%APPDATA%\Mendu` and `%LOCALAPPDATA%\Mendu` on Windows.
+  `X-Tandem: 1` header.
+- Data: `~/.config/tandem/config.json` and `~/.local/share/tandem/` on Linux,
+  `%APPDATA%\Tandem` and `%LOCALAPPDATA%\Tandem` on Windows.
 
 ## Plan from here
 

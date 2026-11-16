@@ -1,4 +1,4 @@
-// Mendu web UI: a single-page app over the local JSON API.
+// Tandem web UI: a single-page app over the local JSON API.
 'use strict';
 
 // ---------- Utilities ----------
@@ -17,7 +17,7 @@ const store = {
 
 // In the Android app the same API is answered in-process through a bridge
 // object instead of over HTTP.
-const bridge = window.MenduAndroid;
+const bridge = window.TandemAndroid;
 const PLATFORM = bridge ? 'android' : 'desktop';
 
 async function request(method, path, body) {
@@ -26,7 +26,7 @@ async function request(method, path, body) {
     if (reply.status >= 400) throw new Error(reply.body?.error || `Request failed (${reply.status})`);
     return reply.body;
   }
-  const init = { method, headers: { 'X-Mendu': '1' } };
+  const init = { method, headers: { 'X-Tandem': '1' } };
   if (body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -98,7 +98,7 @@ const I = {
   power: svg('<path d="M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0"/>', stroke),
 };
 
-const LOGO = `<span class="logo-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5a36"/><stop offset="1" stop-color="#ffb347"/></linearGradient></defs><path d="M14 46a22 22 0 0 1 0-28M50 18a22 22 0 0 1 0 28" fill="none" stroke="url(#lg)" stroke-width="5" stroke-linecap="round" opacity=".55"/><path d="M25 20.5v23l19-11.5z" fill="url(#lg)"/></svg></span><span class="logo-word">MENDU</span>`;
+const LOGO = `<span class="logo-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5a36"/><stop offset="1" stop-color="#ffb347"/></linearGradient></defs><path d="M14 46a22 22 0 0 1 0-28M50 18a22 22 0 0 1 0 28" fill="none" stroke="url(#lg)" stroke-width="5" stroke-linecap="round" opacity=".55"/><path d="M25 20.5v23l19-11.5z" fill="url(#lg)"/></svg></span><span class="logo-word">TANDEM</span>`;
 
 // Profile avatars: a colour and an abstract glyph.
 const AVATAR_COLORS = ['#e4573d', '#3c7be0', '#e9a92c', '#33a877', '#9256e0', '#de5a85', '#22a9b8', '#6f7d8f'];
@@ -255,8 +255,8 @@ async function loadProfiles() {
 function selectProfile(id) {
   S.profile = S.profiles.find((p) => p.id === id) || null;
   if (!S.profile) return renderGate();
-  store.set('mendu.profile', id);
-  store.sset('mendu.session', '1');
+  store.set('tandem.profile', id);
+  store.sset('tandem.session', '1');
   renderShell();
   if (!location.hash || location.hash === '#') location.hash = '/home';
   render();
@@ -268,7 +268,7 @@ function renderShell() {
   const others = S.profiles.filter((p) => p.id !== S.profile.id);
   app.innerHTML = `
     <header class="nav" id="nav">
-      <a class="logo" href="#/home" aria-label="Mendu home">${LOGO}</a>
+      <a class="logo" href="#/home" aria-label="Tandem home">${LOGO}</a>
       <nav class="nav-links">
         <a href="#/home" data-nav="/home">Home</a>
         <a href="#/shows" data-nav="/shows">TV Shows</a>
@@ -294,7 +294,7 @@ function renderShell() {
             <a href="#/settings" data-action="close-menu">${I.gear}Settings</a>
             <button data-action="rescan">${I.refresh}Rescan Library</button>
             ${PLATFORM === 'desktop' ? `<hr>
-            <button data-action="quit">${I.power}Quit Mendu</button>` : ''}
+            <button data-action="quit">${I.power}Quit Tandem</button>` : ''}
           </div>
         </div>
       </div>
@@ -541,7 +541,7 @@ function emptyLibrary() {
   const roots = S.settings?.roots || [];
   if (S.status?.permission === false) {
     return `<div class="empty">
-        <h1>Let Mendu see your videos</h1>
+        <h1>Let Tandem see your videos</h1>
         <p>It needs permission to find the movies and shows stored on this phone. Nothing leaves your device.</p>
         <button class="btn btn-play" data-action="grant">Allow access</button>
       </div>`;
@@ -554,14 +554,14 @@ function emptyLibrary() {
   if (PLATFORM === 'android') {
     return `<div class="empty">
         <h1>No videos found</h1>
-        <p>Mendu shows videos on this phone larger than ${esc(S.settings?.min_size_mb ?? 200)} MB,
+        <p>Tandem shows videos on this phone larger than ${esc(S.settings?.min_size_mb ?? 200)} MB,
         leaving out camera and screen recordings. Copy some movies or shows over, or change that in Settings.</p>
         <a class="btn btn-play" href="#/settings">Settings</a>
       </div>`;
   }
   return `<div class="empty">
       <h1>No videos found</h1>
-      <p>Mendu looks for videos larger than ${esc(S.settings?.min_size_mb ?? 200)} MB in
+      <p>Tandem looks for videos larger than ${esc(S.settings?.min_size_mb ?? 200)} MB in
       ${roots.length ? roots.map((r) => `<code>${esc(r)}</code>`).join(', ') : 'no folders yet'}.</p>
       <a class="btn btn-play" href="#/settings">Choose folders</a>
     </div>`;
@@ -572,7 +572,7 @@ async function renderBrowse(page, filter) {
   if (!data.count) {
     page.className = '';
     page.innerHTML = filter === 'all' ? emptyLibrary()
-      : `<div class="empty"><h1>No ${filter === 'show' ? 'TV shows' : 'movies'} yet</h1><p>Anything Mendu finds will show up here.</p></div>`;
+      : `<div class="empty"><h1>No ${filter === 'show' ? 'TV shows' : 'movies'} yet</h1><p>Anything Tandem finds will show up here.</p></div>`;
     return;
   }
   page.className = data.hero ? '' : 'page-plain';
@@ -840,7 +840,7 @@ function drawSettings() {
       <h1>Settings</h1>
       <section class="panel">
         <h2>What counts as a video</h2>
-        <p class="hint">Mendu shows the videos stored on this phone. Skipping small files keeps out trailers, samples and clips.</p>
+        <p class="hint">Tandem shows the videos stored on this phone. Skipping small files keeps out trailers, samples and clips.</p>
         <label class="field"><span>Ignore files smaller than</span>
           <span class="with-unit"><input type="number" name="min_size_mb" min="0" step="10" value="${esc(d.min_size_mb)}"> MB</span>
         </label>
@@ -848,7 +848,7 @@ function drawSettings() {
       </section>
       <section class="panel">
         <h2>Playback</h2>
-        <p class="hint">Videos open in VLC for Android, which tells Mendu where you stopped. When an episode ends, the next one is offered automatically.</p>
+        <p class="hint">Videos open in VLC for Android, which tells Tandem where you stopped. When an episode ends, the next one is offered automatically.</p>
       </section>
       <div class="settings-actions">
         <button class="btn btn-play" data-action="save-settings">Save</button>
@@ -857,7 +857,7 @@ function drawSettings() {
       </div>
       <section class="panel about">
         <div class="stats" id="library-stats"></div>
-        <p style="margin-top:18px">Mendu ${esc(S.version || '')} is free software under the GNU GPL v3 or later. Nothing leaves your phone.</p>
+        <p style="margin-top:18px">Tandem ${esc(S.version || '')} is free software under the GNU GPL v3 or later. Nothing leaves your phone.</p>
       </section>`;
     renderStatus();
     return;
@@ -866,7 +866,7 @@ function drawSettings() {
     <h1>Settings</h1>
     <section class="panel">
       <h2>Library folders</h2>
-      <p class="hint">Mendu searches these folders, and every folder inside them, for videos.</p>
+      <p class="hint">Tandem searches these folders, and every folder inside them, for videos.</p>
       <ul class="roots">
         ${d.roots.length ? d.roots.map((r, i) => `<li>${I.folder}<code>${esc(r)}</code><button class="icon-btn sm plain" data-action="remove-root" data-index="${i}" title="Remove folder">${I.trash}</button></li>`).join('')
           : '<li class="none">No folders yet. Add one below.</li>'}
@@ -885,7 +885,7 @@ function drawSettings() {
     </section>
     <section class="panel">
       <h2>Playback</h2>
-      <p class="hint">Videos open in VLC. Mendu follows along to remember where you stopped and queues the next episodes.</p>
+      <p class="hint">Videos open in VLC. Tandem follows along to remember where you stopped and queues the next episodes.</p>
       <label class="switch-row"><input type="checkbox" name="fullscreen" ${d.fullscreen ? 'checked' : ''}><span>Open VLC in fullscreen</span></label>
       <label class="field"><span>VLC program</span><input name="vlc" value="${esc(d.vlc)}" autocomplete="off"></label>
     </section>
@@ -901,8 +901,8 @@ function drawSettings() {
     </div>
     <section class="panel about">
       <div class="stats" id="library-stats"></div>
-      <p style="margin-top:18px">Settings: <code>~/.config/mendu/config.json</code> · Library, history and thumbnails: <code>~/.local/share/mendu</code></p>
-      <p>Mendu is free software under the GNU GPL v3 or later.</p>
+      <p style="margin-top:18px">Settings: <code>~/.config/tandem/config.json</code> · Library, history and thumbnails: <code>~/.local/share/tandem</code></p>
+      <p>Tandem is free software under the GNU GPL v3 or later.</p>
     </section>`;
   renderStatus();
 }
@@ -1107,19 +1107,19 @@ document.addEventListener('keydown', (e) => {
 
 async function quitApp() {
   closeMenu();
-  if (!confirm('Quit Mendu? Open it again from your app menu any time.')) return;
+  if (!confirm('Quit Tandem? Open it again from your app menu any time.')) return;
   try { await api.post('/api/quit'); } catch { /* already gone */ }
   clearTimeout(pollTimer);
   closeModal(true);
   app.innerHTML = `<div class="gate"><span class="logo">${LOGO}</span>
-    <h1>See you next time</h1><p style="color:var(--muted);margin:0">Mendu has quit. You can close this tab.</p></div>`;
+    <h1>See you next time</h1><p style="color:var(--muted);margin:0">Tandem has quit. You can close this tab.</p></div>`;
 }
 
 // ---------- Android hooks ----------
 
 // The phone's Back button: close whatever is on top. Returns whether it did;
 // otherwise the app goes back a page (or exits).
-window.menduBack = () => {
+window.tandemBack = () => {
   if ($('#up-next')) { cancelUpNext(); return true; }
   if ($('form[data-form=profile]')) { modalRoot.innerHTML = ''; return true; }
   if (S.modal) { closeModal(); return true; }
@@ -1130,7 +1130,7 @@ window.menduBack = () => {
 
 // The player closed. After a finished episode, count down to the next one
 // like autoplay; Cancel (or Back) stops it.
-window.menduPlaybackEnded = (info) => {
+window.tandemPlaybackEnded = (info) => {
   softRefresh();
   if (info && info.finished && info.next) showUpNext(info.next);
 };
@@ -1191,14 +1191,14 @@ function closeMenu() {
   try {
     await loadProfiles();
   } catch (err) {
-    app.innerHTML = `<div class="empty"><h1>Can’t reach Mendu</h1><p>${esc(err.message)}. Is the app still running?</p>
+    app.innerHTML = `<div class="empty"><h1>Can’t reach Tandem</h1><p>${esc(err.message)}. Is the app still running?</p>
       <button class="btn btn-secondary" onclick="location.reload()">Retry</button></div>`;
     return;
   }
   pollStatus();
   // One profile: straight in. Several: ask once per browser session.
-  const saved = S.profiles.find((p) => p.id === store.get('mendu.profile'));
+  const saved = S.profiles.find((p) => p.id === store.get('tandem.profile'));
   if (S.profiles.length === 1) return selectProfile(S.profiles[0].id);
-  if (saved && store.sget('mendu.session')) return selectProfile(saved.id);
+  if (saved && store.sget('tandem.session')) return selectProfile(saved.id);
   return renderGate();
 }());
