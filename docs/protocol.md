@@ -1,4 +1,4 @@
-# SyncUs protocol
+# Mendu protocol
 
 The sync server protocol is written in Phase 2. This file currently covers the
 bridge between the Flutter app and the YouTube player page.
@@ -10,18 +10,18 @@ loopback HTTP server so the page has a web origin.
 
 ### App to page
 
-JavaScript calls on `window.syncus`. All are ignored until the page has sent `ready`.
+JavaScript calls on `window.mendu`. All are ignored until the page has sent `ready`.
 
 | Call | Effect |
 | --- | --- |
-| `syncus.load(videoId, startSeconds)` | Load a video and start playing from `startSeconds` |
-| `syncus.play()` | Play |
-| `syncus.pause()` | Pause |
-| `syncus.seek(seconds)` | Seek |
+| `mendu.load(videoId, startSeconds)` | Load a video and start playing from `startSeconds` |
+| `mendu.play()` | Play |
+| `mendu.pause()` | Pause |
+| `mendu.seek(seconds)` | Seek |
 
 ### Page to app
 
-JSON strings sent to the WebView handler named `syncus`.
+JSON strings sent to the WebView handler named `mendu`.
 
 | Message | When |
 | --- | --- |

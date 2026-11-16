@@ -5,7 +5,7 @@ else is written but not yet run.
 
 | | Linux | Windows |
 | --- | --- | --- |
-| App builds | Not yet: this machine lacks `clang` and `ninja-build` | Not yet: needs the first GitHub Actions run |
+| App builds and starts | Verified (debug build; ran without errors, screens not yet clicked through) | Not yet: needs the first GitHub Actions run |
 | Local file via VLC | Controller verified against VLC 3.0.23 (headless); UI not yet run | Not yet run |
 | YouTube | Deferred (no WebView chosen) | Not yet run |
 | Unit tests (URL parsing, VLC status) | Pass | Same code |
@@ -28,6 +28,10 @@ else is written but not yet run.
   rounding for the same file, so it cancels out between two VLC players. It
   would not cancel against a different player (for example media_kit on
   Android later).
+- **Two Linux setup problems**, both from this machine's setup rather than
+  the app, and both described in the README: clang looked for a C++ library
+  version that isn't installed, and the VS Code snap terminal makes GTK apps
+  exit at startup.
 - **Flutter 3.50 moved Material widgets** into the `material_ui` package.
   No problem, only a different import.
 

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:syncus/youtube/youtube_url.dart';
+import 'package:mendu/youtube/youtube_url.dart';
 
 void main() {
   const id = 'dQw4w9WgXcQ';

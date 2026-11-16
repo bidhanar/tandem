@@ -3,8 +3,8 @@
 // Plays, pauses, seeks and changes speed, printing what VLC reports.
 import 'dart:io';
 
-import 'package:syncus/local/local_player.dart';
-import 'package:syncus/local/vlc_player.dart';
+import 'package:mendu/local/local_player.dart';
+import 'package:mendu/local/vlc_player.dart';
 
 Future<void> main(List<String> args) async {
   final player = VlcPlayer(executable: args.length > 1 ? args[1] : null);

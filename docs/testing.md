@@ -9,12 +9,12 @@ The two-device sync checklist is added in Phase 2. This is the Phase 1 list.
 VLC must be installed.
 
 1. Open the **Local file** tab and choose a video. A VLC window opens and plays.
-2. Press pause in SyncUs. VLC pauses; the button turns into Play.
+2. Press pause in Mendu. VLC pauses; the button turns into Play.
 3. Press play. VLC resumes.
 4. Drag the seek bar to the middle and release. VLC jumps there.
 5. Watch the position readout: it advances while playing and holds while paused.
-6. Pause or seek inside the VLC window itself. SyncUs follows within half a second.
-7. Close the VLC window. SyncUs shows "No file open".
+6. Pause or seek inside the VLC window itself. Mendu follows within half a second.
+7. Close the VLC window. Mendu shows "No file open".
 8. Choose a second file while the first is playing. The first VLC closes, the new one opens.
 9. Try a file with spaces and non-English characters in its name.
 
@@ -25,8 +25,8 @@ VLC must be installed.
    - `https://www.youtube.com/watch?v=aqz-KE-bpKQ`
    - `https://youtu.be/aqz-KE-bpKQ?t=30`
    - `https://www.youtube.com/shorts/<any short>`
-3. Pause, play and seek from the SyncUs controls. The player follows.
-4. Pause and seek using the player's own controls. The SyncUs readout follows.
+3. Pause, play and seek from the Mendu controls. The player follows.
+4. Pause and seek using the player's own controls. The Mendu readout follows.
 5. Paste a video with embedding disabled. A message explains the owner doesn't allow it.
 6. Paste nonsense text. A message says it isn't a YouTube link.
 7. Note whether an ad plays before the video, and whether the player offers a

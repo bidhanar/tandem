@@ -41,7 +41,7 @@ class InAppWebViewYouTubeAdapter implements YouTubePlayerAdapter {
           onWebViewCreated: (controller) {
             _webView = controller;
             controller.addJavaScriptHandler(
-              handlerName: 'syncus',
+              handlerName: 'mendu',
               callback: (args) => _onMessage(args.first as String),
             );
           },
@@ -74,16 +74,16 @@ class InAppWebViewYouTubeAdapter implements YouTubePlayerAdapter {
 
   @override
   Future<void> load(String videoId, {double startSeconds = 0}) =>
-      _run('syncus.load(${jsonEncode(videoId)}, $startSeconds)');
+      _run('mendu.load(${jsonEncode(videoId)}, $startSeconds)');
 
   @override
-  Future<void> play() => _run('syncus.play()');
+  Future<void> play() => _run('mendu.play()');
 
   @override
-  Future<void> pause() => _run('syncus.pause()');
+  Future<void> pause() => _run('mendu.pause()');
 
   @override
-  Future<void> seek(double seconds) => _run('syncus.seek($seconds)');
+  Future<void> seek(double seconds) => _run('mendu.seek($seconds)');
 
   @override
   void dispose() {

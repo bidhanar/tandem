@@ -2,7 +2,7 @@
 <!--
   Hosts the official YouTube IFrame player. The Flutter app loads this page in
   a WebView and talks to it two ways:
-    app  -> page : calls the functions on window.syncus (load/play/pause/seek)
+    app  -> page : calls the functions on window.mendu (load/play/pause/seek)
     page -> app  : post({type: ...}) messages, sent through the WebView bridge
   See docs/protocol.md ("Player page bridge") for the message list.
 -->
@@ -25,7 +25,7 @@
 
     function post(message) {
       if (!bridgeReady) { outbox.push(message); return; }
-      window.flutter_inappwebview.callHandler('syncus', JSON.stringify(message));
+      window.flutter_inappwebview.callHandler('mendu', JSON.stringify(message));
     }
 
     window.addEventListener('flutterInAppWebViewPlatformReady', function () {
@@ -65,7 +65,7 @@
     }
 
     // ---- app -> page -------------------------------------------------------
-    window.syncus = {
+    window.mendu = {
       load: function (videoId, startSeconds) {
         if (playerReady) player.loadVideoById(videoId, startSeconds || 0);
       },

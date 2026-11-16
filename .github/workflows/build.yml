@@ -51,11 +51,11 @@ jobs:
           cache: true
       - run: flutter build linux --release
       - name: Package
-        run: tar -C build/linux/x64/release -czf "$GITHUB_WORKSPACE/syncus-linux-x64.tar.gz" bundle
+        run: tar -C build/linux/x64/release -czf "$GITHUB_WORKSPACE/mendu-linux-x64.tar.gz" bundle
       - uses: actions/upload-artifact@v4
         with:
-          name: syncus-linux-x64
-          path: syncus-linux-x64.tar.gz
+          name: mendu-linux-x64
+          path: mendu-linux-x64.tar.gz
           if-no-files-found: error
 
   windows:
@@ -73,9 +73,9 @@ jobs:
           channel: stable
           cache: true
       - run: flutter build windows --release
-      # upload-artifact zips the folder itself: unzip it and run syncus.exe.
+      # upload-artifact zips the folder itself: unzip it and run mendu.exe.
       - uses: actions/upload-artifact@v4
         with:
-          name: syncus-windows-x64
+          name: mendu-windows-x64
           path: app/build/windows/x64/runner/Release
           if-no-files-found: error

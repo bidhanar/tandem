@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:syncus/local/vlc_player.dart';
+import 'package:mendu/local/vlc_player.dart';
 
 void main() {
   test('reads a playing status, using the precise fraction for position', () {

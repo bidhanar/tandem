@@ -6,16 +6,16 @@ import 'ui/theme.dart';
 import 'ui/youtube_screen.dart';
 
 void main() {
-  runApp(const ProviderScope(child: SyncUsApp()));
+  runApp(const ProviderScope(child: MenduApp()));
 }
 
-class SyncUsApp extends StatelessWidget {
-  const SyncUsApp({super.key});
+class MenduApp extends StatelessWidget {
+  const MenduApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SyncUs',
+      title: 'Mendu',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: const HomeScreen(),
@@ -33,7 +33,7 @@ class HomeScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('SyncUs'),
+          title: const Text('Mendu'),
           backgroundColor: AppColors.background,
           bottom: const TabBar(
             tabs: [

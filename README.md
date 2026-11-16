@@ -1,4 +1,4 @@
-# SyncUs
+# Mendu
 
 Watch YouTube videos and local video files together with someone far away,
 in sync. Each device plays its own copy; only play, pause and seek messages
@@ -10,11 +10,11 @@ Windows and Linux. YouTube works on Windows only for now.
 ## Get the app
 
 Every push builds the apps: open the latest run on the repository's Actions
-tab and download `syncus-windows-x64` or `syncus-linux-x64` from Artifacts.
+tab and download `mendu-windows-x64` or `mendu-linux-x64` from Artifacts.
 
-- **Windows:** unzip and run `syncus.exe`. Needs [VLC](https://www.videolan.org/vlc/)
+- **Windows:** unzip and run `mendu.exe`. Needs [VLC](https://www.videolan.org/vlc/)
   for local files. The WebView2 runtime it uses ships with Windows 10 and 11.
-- **Linux:** `tar xzf syncus-linux-x64.tar.gz && ./bundle/syncus`. Needs VLC
+- **Linux:** `tar xzf mendu-linux-x64.tar.gz && ./bundle/mendu`. Needs VLC
   (`sudo apt install vlc`).
 
 ## Build it yourself
@@ -26,6 +26,16 @@ Linux also needs:
 ```sh
 sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev vlc
 ```
+
+Two Linux problems you may hit:
+
+- **`cannot find -lstdc++` during the build.** clang is using a GCC version
+  whose C++ library isn't installed. `clang++ -v` names the version it
+  selected; install the matching package, for example
+  `sudo apt install libstdc++-16-dev`.
+- **The app exits at once with a `GLib-GIO-ERROR` about a settings schema**
+  when started from the terminal inside the VS Code snap. That terminal points
+  GTK at the snap's own files. Start the app from a normal terminal instead.
 
 Windows also needs Visual Studio 2022 with "Desktop development with C++".
 
@@ -43,3 +53,7 @@ flutter build windows --release
 - `docs/protocol.md`: messages between the app, the player page and (later) the server
 - `docs/testing.md`: manual test checklist
 - `docs/phase1-report.md`: what works on each platform
+
+## Licence
+
+GPL-3.0-or-later. See `LICENSE`.
