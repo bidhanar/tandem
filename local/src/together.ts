@@ -25,6 +25,15 @@ const POLL_MS = 100;
 const SNAPSHOT_MS = 250;
 const TICK_MS = 500;
 const CLOCK_SAMPLES = 8;
+/**
+ * The page repeats its join call while it is open. If it stops (the tab was
+ * closed) we leave the room too, so your partner doesn't see you as still
+ * there, unless a VLC window for the room is open, in which case you are
+ * still watching. Long, because a background tab may only run its timers
+ * once a minute.
+ */
+const PAGE_TIMEOUT_MS = 75_000;
+const PAGE_CHECK_MS = 5_000;
 const CLOCK_RESYNC_MS = 60_000;
 
 /** The parts of web/sync-core.js used here. */
@@ -72,6 +81,7 @@ export class RoomClient {
   private readonly getConfig: () => AppConfig;
 
   private details: JoinDetails | null = null;
+  private pageSeenAt = 0; // when the page last told us it is in the room
   private socket: Socket | null = null;
   private connection: 'offline' | 'connecting' | 'online' | 'reconnecting' = 'offline';
   private clockOffset = 0; // server time minus performance.now()
@@ -102,6 +112,7 @@ export class RoomClient {
 
   /** Follow the room the page has joined. Calling it again for the same room changes nothing. */
   async join(details: JoinDetails): Promise<void> {
+    this.pageSeenAt = Date.now();
     const same = this.details && this.details.code === details.code && this.details.server === details.server
       && this.details.clientId === details.clientId;
     if (same) {
@@ -146,7 +157,18 @@ export class RoomClient {
       setInterval(() => this.controller?.onSnapshot(this.reading), SNAPSHOT_MS),
       setInterval(() => this.controller?.tick(), TICK_MS),
       setInterval(() => { if (socket.connected) void this.syncClock(socket); }, CLOCK_RESYNC_MS),
+      setInterval(() => this.checkPage(), PAGE_CHECK_MS),
     ];
+  }
+
+  /** The page was closed or reloaded. A reload joins again within seconds. */
+  pageGone(): void {
+    this.pageSeenAt = 0;
+    this.checkPage();
+  }
+
+  private checkPage(): void {
+    if (this.details && !this.vlc && Date.now() - this.pageSeenAt > PAGE_TIMEOUT_MS) this.leave();
   }
 
   leave(): void {

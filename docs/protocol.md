@@ -113,6 +113,10 @@ client makes once and keeps, so a reconnect is recognised as the same person.
   program (which drives VLC) join with the same `clientId` and share one
   seat. They are offline only when every connection is gone. `room:leave`
   from any of them removes them all.
+  The local program follows the page: the page repeats
+  `POST /api/together/join` every 15 s and sends `/api/together/gone` when the
+  tab closes. Without word from the page for 75 s (or at once after `gone`),
+  the local program disconnects, unless a VLC window for the room is open.
 - **Queue.** YouTube videos wait in `queue`. `queue:add` to a room with
   nothing loaded starts the first one. When a video finishes, every client
   sends `media:ended`; it counts only while that video is still the room's

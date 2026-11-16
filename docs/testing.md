@@ -91,12 +91,18 @@ You both need the same video file somewhere in your library folders.
    "Reconnecting…"; the other sees them offline and keeps playing. When the
    network returns they rejoin and jump to the right place.
 2. Reload one person's page: they are back in the room and in step.
-3. Throttle one person's connection so the video stalls: the other is
+3. Close one person's browser tab (Tandem still running): within a few
+   seconds the other sees them offline. Open Tandem again: they are back in
+   the room. If a local video was open in VLC, closing the tab doesn't take
+   them out; they are still watching.
+4. Restart the sync server mid-video (or wait for a free host to sleep and
+   wake): both get back into the same room and carry on from the same place.
+5. Throttle one person's connection so the video stalls: the other is
    paused, and after a long stall there is a "Starting in 3" countdown.
-4. If an ad plays for one person, the other waits (up to 15 seconds).
-5. With a video loaded, click Home: the player stays in the corner with
+6. If an ad plays for one person, the other waits (up to 15 seconds).
+7. With a video loaded, click Home: the player stays in the corner with
    "Back to the room".
-6. Leave room: the other person is told.
+8. Leave room: the other person is told.
 
 ### Automated checks
 

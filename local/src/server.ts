@@ -248,6 +248,11 @@ export function createServer(services: Services): http.Server {
     return { ok: true };
   });
 
+  route('POST', /^\/api\/together\/gone$/, () => {
+    room.pageGone();
+    return { ok: true };
+  });
+
   route('POST', /^\/api\/together\/reopen$/, () => {
     room.reopen();
     return { ok: true };

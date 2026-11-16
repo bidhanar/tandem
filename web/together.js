@@ -162,7 +162,7 @@ async function enterRoom(event, payload, rejoining = false) {
   T.room = { code: answer.room.code, members: answer.room.members, you: answer.room.you };
   remember.set('tandem.room', T.room.code);
   // The local program follows the same room, so it can keep VLC in step.
-  tellLocal('join', { server: T.serverUrl, code: T.room.code, client: T.room.you, name: T.name, profile: T.profileId });
+  tellLocal('join', localJoinDetails());
   if (fresh) {
     drawRoom();
     startController();
@@ -206,6 +206,10 @@ function membersChanged(members, what) {
 
 // ---------- The local program (VLC) ----------
 
+function localJoinDetails() {
+  return { server: T.serverUrl, code: T.room.code, client: T.room.you, name: T.name, profile: T.profileId };
+}
+
 async function tellLocal(what, body = {}) {
   try {
     const response = await fetch(`/api/together/${what}`, {
@@ -241,6 +245,8 @@ function startController() {
   });
   T.timers.push(setInterval(reportPlayer, 250));
   T.timers.push(setInterval(watchLocal, 1000));
+  // Keep telling the local program we're here; when this tab closes it stops.
+  T.timers.push(setInterval(() => { if (T.room) tellLocal('join', localJoinDetails()); }, 15_000));
   T.timers.push(setInterval(() => T.controller?.tick(), SYNC_CONFIG.tickMs));
 }
 
@@ -631,6 +637,12 @@ function layout() {
 }
 
 // ---------- Events ----------
+
+// Closing the tab (or reloading it): tell the local program straight away.
+window.addEventListener('pagehide', () => {
+  if (!T.room) return;
+  fetch('/api/together/gone', { method: 'POST', keepalive: true, headers: { 'X-Tandem': '1' } }).catch(() => {});
+});
 
 root.addEventListener('click', (event) => {
   const button = event.target.closest('[data-tg]');
