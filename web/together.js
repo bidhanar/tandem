@@ -7,7 +7,7 @@
 // docked in the corner (YouTube requires its player to remain visible).
 
 import { SYNC_CONFIG } from './sync-config.js';
-import { bestOffset, expectedPosition, isRolling, SyncController } from './sync-core.js';
+import { bestOffset, expectedPosition, isRolling, restoreInfo, SyncController } from './sync-core.js';
 import { parseYouTubeLinks } from './youtube-url.js';
 
 const root = document.getElementById('together');
@@ -143,7 +143,9 @@ async function enterRoom(event, payload, rejoining = false) {
   let answer;
   try {
     await connect();
-    answer = await ask(event, { ...payload, clientId: clientId(), name: T.name });
+    // Coming back to a room: bring what we know, in case the server lost it.
+    const restore = rejoining ? { restore: restoreInfo(T.state, T.queue, serverNow()) } : {};
+    answer = await ask(event, { ...payload, ...restore, clientId: clientId(), name: T.name });
   } catch {
     disconnect();
     return showError(`Couldn't reach the sync server at ${T.serverUrl}. Check it in Settings.`);

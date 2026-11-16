@@ -120,3 +120,26 @@ export function removeWaiting(state: RoomState, clientId: string, now: number, r
     waitingFor,
   };
 }
+
+/**
+ * A room rebuilt after the server restarted (free hosts restart and sleep
+ * often, and rooms live only in memory). A client that was in the room sends
+ * what it last knew; anything that doesn't check out is dropped. Playback
+ * continues from `position` as of `now`, and the version starts again.
+ */
+export function restoredState(info: unknown, now: number): RoomState {
+  const state = emptyState(now);
+  if (info === null || typeof info !== 'object') return state;
+  const i = info as Record<string, unknown>;
+  if ((i.mediaType !== 'youtube' && i.mediaType !== 'local') || typeof i.mediaId !== 'string'
+    || i.mediaId === '' || i.mediaId.length > 200) return state;
+  return {
+    ...state,
+    mediaType: i.mediaType,
+    mediaId: i.mediaId,
+    mediaTitle: typeof i.mediaTitle === 'string' ? i.mediaTitle.slice(0, 300) : null,
+    isPlaying: i.isPlaying === true,
+    position: validPosition(i.position) ? i.position : 0,
+    version: 1,
+  };
+}

@@ -30,6 +30,7 @@ export type MemberInfo = { id: string; name: string; online: boolean };
 /** Letters and digits that are hard to mix up when read aloud or typed. */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
+const CODE_PATTERN = new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`);
 
 export function normalizeCode(text: string): string {
   return text.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -41,6 +42,21 @@ export function memberList(room: Room): MemberInfo[] {
 
 export class Rooms {
   private readonly rooms = new Map<string, Room>();
+
+  /**
+   * Brings back a room under its old code, if the code could be one of ours
+   * and no room holds it now. Returns the room with that code either way, or
+   * undefined for a code we would never have made.
+   */
+  restore(code: string, state: RoomState, queue: QueueItem[]): Room | undefined {
+    const normalized = normalizeCode(code);
+    const existing = this.rooms.get(normalized);
+    if (existing) return existing;
+    if (!CODE_PATTERN.test(normalized)) return undefined;
+    const room: Room = { code: normalized, state, queue, members: new Map(), emptySince: null, stalledSince: null };
+    this.rooms.set(normalized, room);
+    return room;
+  }
 
   create(now: number): Room {
     let code: string;

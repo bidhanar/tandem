@@ -22,6 +22,24 @@ export function expectedPosition(state, now) {
 }
 
 /**
+ * What a client sends when rejoining, so the server can rebuild the room if
+ * it restarted and lost it: the media, where playback has got to by now, and
+ * the queue. Harmless when the room still exists (the server ignores it).
+ */
+export function restoreInfo(state, queue, now) {
+  const info = { queue: queue ?? [] };
+  if (!state?.mediaId) return info;
+  return {
+    ...info,
+    mediaType: state.mediaType,
+    mediaId: state.mediaId,
+    mediaTitle: state.mediaTitle,
+    isPlaying: state.isPlaying,
+    position: expectedPosition(state, now),
+  };
+}
+
+/**
  * Clock offset from ping samples [{ t0, t1, serverTime }], where t0/t1 are
  * the local send and receive times. Uses the sample with the shortest round
  * trip, since it has the least room for error. serverNow = localNow + offset.

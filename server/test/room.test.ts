@@ -158,3 +158,25 @@ test('both buffering: resumes only when both are back', () => {
   state = removeWaiting(state, PARTNER, T0 + 3000, 0);
   assert.equal(expectedPosition(state, T0 + 4000), 2);
 });
+
+test('a restored room continues the media from where it had got to', async () => {
+  const { restoredState } = await import('../src/room.ts');
+  const state = restoredState(
+    { mediaType: 'youtube', mediaId: 'vid', mediaTitle: 'A video', isPlaying: true, position: 95.5 }, T0,
+  );
+  assert.deepEqual(
+    [state.mediaType, state.mediaId, state.mediaTitle, state.isPlaying, state.position, state.updatedAt, state.version, state.waitingFor],
+    ['youtube', 'vid', 'A video', true, 95.5, T0, 1, []],
+  );
+  assert.equal(expectedPosition(state, T0 + 2000), 97.5);
+});
+
+test('a restore with bad or missing media gives an empty room', async () => {
+  const { restoredState } = await import('../src/room.ts');
+  for (const info of [null, 'x', {}, { mediaType: 'vimeo', mediaId: 'x' }, { mediaType: 'youtube', mediaId: '' }]) {
+    const state = restoredState(info, T0);
+    assert.deepEqual([state.mediaId, state.version, state.isPlaying], [null, 0, false], JSON.stringify(info));
+  }
+  const odd = restoredState({ mediaType: 'local', mediaId: 'v1.x', position: -4, isPlaying: 'yes' }, T0);
+  assert.deepEqual([odd.position, odd.isPlaying], [0, false]);
+});

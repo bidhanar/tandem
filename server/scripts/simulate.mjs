@@ -9,7 +9,7 @@ import { io } from 'socket.io-client';
 
 import { createSyncServer } from '../dist/src/app.js';
 import { SYNC_CONFIG } from '../../web/sync-config.js';
-import { bestOffset, SyncController } from '../../web/sync-core.js';
+import { bestOffset, restoreInfo, SyncController } from '../../web/sync-core.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -78,9 +78,20 @@ async function person(name, url, loadMs) {
   ];
   me.enter = async (event, payload) => {
     const answer = await ask(event, { ...payload, clientId: me.id, name });
-    if (answer.ok) me.controller.onRemoteState(answer.room.state);
+    if (answer.ok) {
+      me.code = answer.room.code;
+      me.controller.onRemoteState(answer.room.state);
+    }
     return answer;
   };
+  // Like the page: after a dropped connection, rejoin and bring what we know.
+  me.autoRejoin = false;
+  socket.on('connect', async () => {
+    if (!me.autoRejoin) return;
+    const restore = restoreInfo(me.controller.state, [], performance.now() + offset);
+    me.controller.state = null;
+    me.rejoined = await me.enter('room:join', { code: me.code, restore });
+  });
   return me;
 }
 
@@ -90,7 +101,7 @@ function check(label, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
 }
 
-const server = createSyncServer();
+let server = createSyncServer();
 await new Promise((resolve) => server.httpServer.listen(0, resolve));
 const url = `http://127.0.0.1:${server.httpServer.address().port}`;
 
@@ -163,6 +174,20 @@ ana.controller.loadingId = null;
 await ana.enter('room:join', { code: created.room.code });
 await sleep(4000);
 check('Ana rejoins and snaps to where Ben is', both('playing') && apart() < 0.5, `${apart().toFixed(2)} s apart`);
+
+// The server restarts (free hosts do this) and forgets every room.
+ana.autoRejoin = true;
+ben.autoRejoin = true;
+const beforeRestart = ben.player.read().position;
+const port = server.httpServer.address().port;
+await server.close();
+server = createSyncServer();
+await new Promise((resolve) => server.httpServer.listen(port, resolve));
+await sleep(9000);
+check('after a server restart both are back in the same room', ana.rejoined?.ok && ben.rejoined?.ok
+  && ana.rejoined.room.code === created.room.code && ben.rejoined.room.members.length === 2);
+check('...and carry on from where they were, together', both('playing') && apart() < 0.5
+  && ben.player.read().position > beforeRestart, `${apart().toFixed(2)} s apart`);
 
 for (const p of [ana, ben, cara]) {
   p.timers.forEach(clearInterval);

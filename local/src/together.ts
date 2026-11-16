@@ -37,6 +37,7 @@ type SyncCore = {
     drift(): number | null;
   };
   bestOffset(samples: { t0: number; t1: number; serverTime: number }[]): number;
+  restoreInfo(state: RoomState | null, queue: unknown[], now: number): unknown;
   expectedPosition(state: RoomState, now: number): number;
 };
 type RoomState = {
@@ -87,6 +88,7 @@ export class RoomClient {
   private polling = false;
   private readonly estimator = new PositionEstimator(POLL_MS);
   private view: LocalView = { phase: 'idle' };
+  private queue: unknown[] = []; // the room's YouTube queue, kept only to restore the room if the server loses it
 
   constructor(library: Library, playback: Playback, getConfig: () => AppConfig) {
     this.library = library;
@@ -124,15 +126,20 @@ export class RoomClient {
 
     socket.on('connect', async () => {
       await this.syncClock(socket);
-      const answer = await this.ask(socket, 'room:join', { code: details.code, clientId: details.clientId, name: details.name });
+      const restore = this.core!.restoreInfo(this.controller?.state ?? null, this.queue, this.serverNow());
+      const answer = await this.ask(socket, 'room:join', {
+        code: details.code, clientId: details.clientId, name: details.name, restore,
+      });
       if (this.socket !== socket) return;
       if (!answer?.ok) return this.leave(); // the room is gone
       this.connection = 'online';
+      this.queue = answer.room.queue ?? [];
       if (this.controller) this.controller.state = null; // start afresh after a reconnect
       this.controller?.onRemoteState(answer.room.state);
     });
     socket.on('disconnect', () => { this.connection = 'reconnecting'; });
     socket.on('state:changed', ({ state }: { state: RoomState }) => this.controller?.onRemoteState(state));
+    socket.on('queue:changed', ({ queue }: { queue: unknown[] }) => { this.queue = queue; });
 
     this.timers = [
       setInterval(() => void this.poll(), POLL_MS),
@@ -148,6 +155,7 @@ export class RoomClient {
     this.socket = null;
     this.controller = null;
     this.details = null;
+    this.queue = [];
     this.connection = 'offline';
     this.closeOurVlc();
     this.dismissed = null;

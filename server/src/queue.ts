@@ -31,3 +31,15 @@ export function takeFromQueue(queue: QueueItem[], id?: unknown): { item: QueueIt
   if (!item) return { item: null, queue };
   return { item, queue: queue.filter((entry) => entry !== item) };
 }
+
+/** A queue sent back by a client after the server restarted; invalid entries are dropped. */
+export function restoredQueue(items: unknown): QueueItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item): item is QueueItem => item !== null && typeof item === 'object'
+      && typeof item.id === 'string' && /^[0-9a-f]{1,24}$/.test(item.id)
+      && typeof item.mediaId === 'string' && VIDEO_ID.test(item.mediaId)
+      && typeof item.addedBy === 'string' && item.addedBy.length <= 64)
+    .slice(0, MAX_QUEUE)
+    .map(({ id, mediaId, addedBy }) => ({ id, mediaId, addedBy }));
+}

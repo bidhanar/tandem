@@ -5,8 +5,8 @@ import http from 'node:http';
 import { Server, type Socket } from 'socket.io';
 
 import { config } from './config.ts';
-import { addToQueue, removeFromQueue, takeFromQueue, type QueueItem } from './queue.ts';
-import { addWaiting, applyRequest, removeWaiting, type RoomState, type StateRequest } from './room.ts';
+import { addToQueue, removeFromQueue, restoredQueue, takeFromQueue, type QueueItem } from './queue.ts';
+import { addWaiting, applyRequest, removeWaiting, restoredState, type RoomState, type StateRequest } from './room.ts';
 import { memberList, Rooms, type Room } from './rooms.ts';
 
 type Reply = (answer: unknown) => void;
@@ -165,7 +165,14 @@ export function createSyncServer() {
     socket.on('room:join', (payload: any, reply: unknown) => {
       if (!isReply(reply)) return;
       if (!allowed(socket, Date.now())) return reply({ ok: false, error: 'Too many attempts. Wait a minute and try again.' });
-      const room = rooms.get(text(payload?.code, 20));
+      const code = text(payload?.code, 20);
+      let room = rooms.get(code);
+      // Someone who was in the room is coming back after the server restarted:
+      // rebuild it from what they remember.
+      if (!room && payload?.restore && typeof payload.restore === 'object') {
+        const now = Date.now();
+        room = rooms.restore(code, restoredState(payload.restore, now), restoredQueue(payload.restore.queue));
+      }
       if (!room) return reply({ ok: false, error: 'No room with that code. Check it with your partner.' });
       join(socket, room, payload, reply);
     });

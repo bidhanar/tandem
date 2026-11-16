@@ -48,3 +48,10 @@ test('takes the first entry, or a chosen one', () => {
   assert.equal(takeFromQueue([]).item, null);
   assert.equal(takeFromQueue(queue, 'missing').item, null);
 });
+
+test('a restored queue keeps valid entries only', async () => {
+  const { restoredQueue } = await import('../src/queue.ts');
+  const good = { id: 'abc123', mediaId: A, addedBy: 'ana' };
+  assert.deepEqual(restoredQueue([good, { ...good, mediaId: 'bad' }, { ...good, id: 'NOT HEX' }, null, 7]), [good]);
+  assert.deepEqual(restoredQueue('nope'), []);
+});
