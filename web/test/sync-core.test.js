@@ -180,6 +180,20 @@ test('one user play causes exactly one request', () => {
   assert.deepEqual(world.requests().map((r) => r.action), ['play']);
 });
 
+test('the same person can pause and then play again', () => {
+  const world = playingWorld();
+  world.player.status = 'paused';
+  world.run(3000);
+  world.player.status = 'buffering'; // YouTube buffers for a moment before it plays
+  world.run(500);
+  world.player.status = 'playing';
+  world.run(3000);
+  world.player.status = 'paused';
+  world.run(3000);
+  assert.deepEqual(world.requests().map((r) => r.action), ['pause', 'play', 'pause']);
+  assert.deepEqual(world.player.commands, []); // we never overrode them
+});
+
 test('one user seek causes exactly one request, forwards or backwards', () => {
   const world = playingWorld();
   world.player.position = 200;
@@ -189,6 +203,31 @@ test('one user seek causes exactly one request, forwards or backwards', () => {
   assert.deepEqual(world.requests().map((r) => r.action), ['seek', 'seek']);
   assert.equal(world.requests()[0].position, 200.25);
   assert.equal(world.player.count('seek'), 0); // we never fought the user's seek
+});
+
+test('a seek that buffers for a while is still seen as one seek', () => {
+  const world = playingWorld();
+  world.player.position = 300;
+  world.player.status = 'buffering';
+  world.run(2000);
+  world.player.status = 'playing';
+  world.run(4000);
+  assert.deepEqual(world.requests().map((r) => r.action), ['seek']);
+  assert.equal(world.player.count('seek'), 0);
+});
+
+test('our own drift seek is not mistaken for the person seeking, however long it buffers', () => {
+  const world = playingWorld();
+  world.player.position -= 0.9;
+  world.controller.lastSteady = null;
+  const seek = world.player.seek.bind(world.player);
+  world.player.seek = (seconds) => { seek(seconds); world.player.status = 'buffering'; };
+  world.run(2500);
+  assert.equal(world.player.count('seek'), 1);
+  world.run(2500); // still buffering, well past the guard window
+  world.player.status = 'playing';
+  world.run(3000);
+  assert.deepEqual(world.requests(), []);
 });
 
 test('a seek while paused is sent too', () => {
@@ -274,7 +313,7 @@ test('a countdown holds the player, then starts it on time', () => {
 test('YouTube: small drift is left alone', () => {
   const world = playingWorld();
   world.player.position -= 0.3;
-  world.controller.snapshot = null; // forget the last reading so this isn't seen as a seek
+  world.controller.lastSteady = null; // forget the last reading so this isn't seen as a seek
   world.run(10_000);
   assert.deepEqual(world.player.commands, []);
   assert.deepEqual(world.sent, []);
@@ -283,7 +322,7 @@ test('YouTube: small drift is left alone', () => {
 test('YouTube: large drift is fixed with one seek, then a cooldown', () => {
   const world = playingWorld();
   world.player.position -= 0.9; // fell behind without a visible jump (a stall)
-  world.controller.snapshot = null;
+  world.controller.lastSteady = null;
   world.run(4000);
   assert.equal(world.player.count('seek'), 1);
   assert.ok(Math.abs(world.controller.drift()) < 0.5);
@@ -293,13 +332,13 @@ test('YouTube: large drift is fixed with one seek, then a cooldown', () => {
 test('local: small drift ignored; medium drift fixed by speed; large by seeking', () => {
   const small = playingWorld('local');
   small.player.position -= 0.1;
-  small.controller.snapshot = null;
+  small.controller.lastSteady = null;
   small.run(6000);
   assert.deepEqual(small.player.commands, []);
 
   const behind = playingWorld('local');
   behind.player.position -= 0.3;
-  behind.controller.snapshot = null;
+  behind.controller.lastSteady = null;
   behind.run(2500);
   assert.deepEqual(behind.player.commands, [['rate', 1.05]]);
   behind.run(8000);
@@ -309,13 +348,13 @@ test('local: small drift ignored; medium drift fixed by speed; large by seeking'
 
   const ahead = playingWorld('local');
   ahead.player.position += 1.0;
-  ahead.controller.snapshot = null;
+  ahead.controller.lastSteady = null;
   ahead.run(2500);
   assert.deepEqual(ahead.player.commands, [['rate', 0.9]]);
 
   const far = playingWorld('local');
   far.player.position -= 5;
-  far.controller.snapshot = null;
+  far.controller.lastSteady = null;
   far.run(2500);
   assert.equal(far.player.count('seek'), 1);
   assert.deepEqual(far.sent, []);

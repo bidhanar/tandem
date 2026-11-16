@@ -12,20 +12,25 @@ it and win over it.
 local/    The program each person runs (Node + TypeScript, no runtime
           dependencies). Serves the page on localhost, scans video folders,
           launches and controls VLC.
-web/      The page (plain JS/CSS, no framework), copied from Synaxis and
-          renamed. Talks to local/ over /api/*.
-server/   Sync server (Node + TypeScript + Socket.IO). Not yet written.
+web/      The page (plain JS/CSS, no framework, no build). app.js/app.css are
+          Synaxis's, renamed. together.js is the Watch Together page;
+          sync-core.js is the sync logic (no DOM, unit tested);
+          sync-config.js holds every threshold.
+server/   Sync server (Node + TypeScript + Socket.IO). room.ts is the pure
+          state rules, app.ts the socket wiring, config.ts the timings.
 docs/     spec.md, protocol.md, testing.md
 ```
 
 ## Commands
 
 ```sh
-cd local
-npm install
-npm test                               # compiles, then runs the unit tests
-npm start                              # compiles, starts, opens the browser
-npm start -- --no-browser --port 8599  # for testing without opening a tab
+cd local  && npm install && npm test   # compiles, then runs the unit tests
+cd local  && npm start                 # compiles, starts, opens the browser
+cd local  && npm start -- --no-browser --port 8599
+cd web    && npm test                  # sync logic (plain node --test)
+cd server && npm install && npm test   # room state rules
+cd server && npm run simulate          # two simulated people end to end, ~30 s
+cd server && npm start                 # sync server on port 8686
 ```
 
 Ubuntu's Node package can't run TypeScript directly, so everything is
@@ -51,15 +56,15 @@ properties).
 ## Plan from here
 
 1. Done: library + VLC playback on localhost.
-2. Sync server: rooms (6-character code, two people by default, limit is a
-   server setting), clock sync, authoritative state, as in spec sections 1-8.
-3. YouTube sync in the page (official IFrame player in the real browser).
-4. Local-file sync: the local program is the sync client for VLC (a hidden
-   browser tab gets its timers throttled, so the page can't be).
-5. Chat, reactions (beside the YouTube player, never over it), presence, queue.
-
-The sync logic should be one plain module shared by the page and the local
-program, tested with a fake player and fake clock.
+2. Done: sync server (rooms, clock sync, state, buffering holds, chat and
+   reaction relay) with Dockerfile.
+3. Done: YouTube sync in the page, verified with the real player in two
+   browser tabs.
+4. Next: local-file sync. The local program must be the sync client for VLC
+   (a hidden browser tab gets its timers throttled, so the page can't be);
+   it can import web/sync-core.js. Needs file fingerprinting and matching.
+5. Then: chat and reactions UI (reactions beside the YouTube player, never
+   over it), queue, deploying the server to a free host.
 
 ## Decisions
 
@@ -88,5 +93,14 @@ program, tested with a fake player and fake clock.
 - Testing playback without opening a window or making sound: point the `vlc`
   setting at a script that runs `vlc -I dummy --vout dummy --aout dummy "$@"`,
   and set it back to `vlc` afterwards.
-- Don't run the built program from the VS Code snap terminal when testing
-  anything graphical; it breaks GTK and GStreamer apps.
+- Testing the page for real: headless Firefox with `--remote-debugging-port`
+  speaks WebDriver BiDi (Node 22 has a WebSocket client built in). Firefox is
+  a snap, so its `--profile` folder must be under `~/snap/firefox/common/`;
+  set `media.autoplay.default` 0 in `user.js`. Use `browser.createUserContext`
+  to get two tabs with separate storage (two people). Player actions can be
+  faked with `iframe.contentWindow.postMessage` of the IFrame API's command
+  JSON. A background tab can't start playback, and its timers run once a second.
+- `window.Together.inspect()` in the browser console shows what the sync
+  logic sees.
+- Never match your own shell with `pkill -f`: write the pattern with a
+  bracket, e.g. `pkill -f "dist/src/[m]ain.js"`.

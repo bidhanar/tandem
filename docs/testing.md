@@ -1,9 +1,6 @@
 # Manual test checklist
 
-The two-device sync checklist is added with the sync server. This is the
-list for the library and VLC playback.
-
-Start with `cd local && npm install && npm start`.
+Start Mendu with `cd local && npm install && npm start`.
 
 ## Library
 
@@ -28,5 +25,53 @@ Start with `cd local && npm install && npm start`.
 5. For a show, let an episode finish (or seek near the end): VLC moves on to
    the next episode.
 6. Mark a title watched and unwatched from its page.
+
+## Watch Together (YouTube)
+
+Both people need the same sync server address in Settings. To try it alone on
+one computer, start the server (`cd server && npm install && npm start`) and
+use two different browsers, or one normal and one private window, as the two
+people. Two normal windows of the same browser count as one person.
+
+### Rooms
+
+1. Person A: Watch Together, Create room. A 6-character code appears.
+2. Person B: types the code (any case), Join. Each sees the other "is here".
+3. A third person trying the code is told the room is full.
+4. A wrong code gives "No room with that code".
+
+### Play, pause, seek
+
+1. A pastes a YouTube link and presses "Play for both". Both players load,
+   then start together.
+2. Either person pauses in the player: the other pauses at the same spot.
+3. Either person presses play: both resume.
+4. Either person drags the player's seek bar: the other follows.
+5. Seek while paused: the other moves to the same spot and stays paused.
+6. The status line says "in sync" most of the time. Compare the two
+   players' clocks by eye: they should be within about half a second.
+7. Paste a different link: both switch to the new video.
+8. Paste a video that can't be embedded: a message explains why.
+
+### Trouble
+
+1. Turn off one person's network for 10 seconds. Their page says
+   "Reconnecting…"; the other sees them offline and keeps playing. When the
+   network returns they rejoin and jump to the right place.
+2. Reload one person's page: they are back in the room and in step.
+3. Throttle one person's connection so the video stalls: the other is
+   paused, and after a long stall there is a "Starting in 3" countdown.
+4. If an ad plays for one person, the other waits (up to 15 seconds).
+5. With a video loaded, click Home: the player stays in the corner with
+   "Back to the room".
+6. Leave room: the other person is told.
+
+### Automated checks
+
+```sh
+cd server && npm test          # room state rules
+cd server && npm run simulate  # two simulated people, about 30 seconds
+cd web && npm test             # sync logic
+```
 
 Report for each step: worked / didn't, and what you saw.

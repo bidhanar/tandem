@@ -157,6 +157,7 @@ await new Promise((resolve) => ana.socket.once('connect', resolve));
 ana.player = new PretendPlayer(300); // as if the page was reloaded
 ana.controller.player = ana.player;
 ana.controller.snapshot = null;
+ana.controller.lastSteady = null;
 ana.controller.state = null;
 ana.controller.loadingId = null;
 await ana.enter('room:join', { code: created.room.code });

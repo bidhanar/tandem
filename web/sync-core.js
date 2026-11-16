@@ -58,10 +58,11 @@ export class SyncController {
 
     this.state = null; // latest room state
     this.snapshot = null; // latest player reading, with `at` (server time)
+    this.lastSteady = null; // latest reading that was playing or paused (not buffering)
     this.guardUntil = 0; // until then, the player's events are our own doing
     this.commandsAfter = 0; // no new commands to the player before this
     this.loadingId = null; // media we have asked the player to load
-    this.told = null; // the last thing we told the player: 'play' or 'pause'
+    this.told = null; // what the player was last put into, by us or by the person here: 'play' or 'pause'
     this.readySent = false; // told the server we finished loading/buffering
     this.bufferingSince = null;
     this.stallSent = false;
@@ -86,7 +87,14 @@ export class SyncController {
   drift() {
     const { state, snapshot } = this;
     if (!state || !snapshot || snapshot.mediaId !== state.mediaId || !steady(snapshot.status)) return null;
-    return snapshot.position - expectedPosition(state, this.now());
+    const now = this.now();
+    return this.positionAt(snapshot, now) - expectedPosition(state, now);
+  }
+
+  /** Where the player is now, given a reading that may be a little old. */
+  positionAt(snapshot, now) {
+    if (snapshot.status !== 'playing') return snapshot.position;
+    return snapshot.position + ((now - snapshot.at) / 1000) * snapshot.rate;
   }
 
   /** The server sent the room's state. */
@@ -105,9 +113,12 @@ export class SyncController {
   /** The player reported what it is doing (several times a second). */
   onSnapshot(reading) {
     const now = this.now();
-    const previous = this.snapshot;
+    // Seeks are spotted by comparing with the last reading that wasn't
+    // buffering: a seek during playback buffers for a moment in between.
+    const previous = this.lastSteady;
     const snapshot = { ...reading, at: now };
     this.snapshot = snapshot;
+    if (steady(snapshot.status)) this.lastSteady = snapshot;
 
     const state = this.state;
     if (!state || state.mediaId === null) return;
@@ -145,8 +156,7 @@ export class SyncController {
     }
 
     // A seek shows as the position moving more than playback explains.
-    if (!previous || previous.mediaId !== snapshot.mediaId) return;
-    if (!steady(previous.status) || !steady(snapshot.status)) return;
+    if (!previous || previous.mediaId !== snapshot.mediaId || !steady(snapshot.status)) return;
     const elapsed = (snapshot.at - previous.at) / 1000;
     const moved = snapshot.position - previous.position;
     const most = (previous.status === 'playing' || snapshot.status === 'playing' ? elapsed * snapshot.rate : 0)
@@ -159,6 +169,9 @@ export class SyncController {
   request(state, request, change, now) {
     this.send('state:request', request);
     this.state = { ...state, ...change, position: request.position, updatedAt: now };
+    // The player is now paused or playing by the person's choice; the next
+    // change the other way is a new action of theirs, not an echo of ours.
+    if (request.action !== 'seek') this.told = request.action;
   }
 
   /** Tell the room when this player has been stuck buffering for a while. */
@@ -173,6 +186,12 @@ export class SyncController {
       this.stallSent = true;
       this.send('buffer:start');
     }
+  }
+
+  /** Our own seek. The jump it causes must not be mistaken for the person seeking. */
+  seekPlayer(seconds) {
+    this.lastSteady = null;
+    this.player.seek(seconds);
   }
 
   /** Marks the player's coming events as caused by us, and paces our commands. */
@@ -195,6 +214,7 @@ export class SyncController {
       if (this.loadingId !== state.mediaId) {
         this.loadingId = state.mediaId;
         player.load(state, expectedPosition(state, now)); // a load starts playing by itself
+        this.lastSteady = null;
         this.told = 'play';
         this.commanded(now);
       }
@@ -218,13 +238,16 @@ export class SyncController {
 
     if (!this.rolling(state, now)) {
       let acted = false;
-      if (snapshot.status !== 'paused') {
+      // Only a player that is really playing is paused. One that is still
+      // buffering may be the person here pressing play (YouTube buffers for
+      // a moment first); if it starts playing, the next reading settles it.
+      if (snapshot.status === 'playing') {
         player.pause();
         this.told = 'pause';
         acted = true;
       }
       if (Math.abs(off) > config.pausedTolerance) {
-        player.seek(target);
+        this.seekPlayer(target);
         acted = true;
       }
       if (this.nudging) this.endNudge();
@@ -234,7 +257,7 @@ export class SyncController {
 
     let acted = false;
     if (fresh && steady(snapshot.status) && Math.abs(off) > config.applySeekThreshold) {
-      player.seek(target);
+      this.seekPlayer(target);
       acted = true;
     }
     if (snapshot.status === 'paused' && (this.told === 'pause' || now < this.guardUntil || fresh)) {
@@ -255,9 +278,7 @@ export class SyncController {
     if (!this.rolling(state, now) || snapshot.status !== 'playing' || now < this.guardUntil) return;
     if (state.waitingFor.includes(this.clientId)) return;
 
-    // The snapshot is a little old; move it forward to now before comparing.
-    const position = snapshot.position + ((now - snapshot.at) / 1000) * snapshot.rate;
-    const drift = position - expectedPosition(state, now);
+    const drift = this.positionAt(snapshot, now) - expectedPosition(state, now);
 
     if (this.nudging) return this.continueNudge(drift, now);
     if (now - this.lastDriftCheck < config.driftCheckMs) return;
@@ -276,7 +297,7 @@ export class SyncController {
       this.seekAhead = clamp(this.seekAhead - drift * 0.5, 0, y.seekAheadMax);
     }
     if (Math.abs(drift) <= y.seekThreshold || now - this.lastDriftSeek < y.seekCooldownMs) return;
-    this.player.seek(expectedPosition(this.state, now) + this.seekAhead);
+    this.seekPlayer(expectedPosition(this.state, now) + this.seekAhead);
     this.lastDriftSeek = now;
     this.measureSeek = true;
     this.commanded(now);
@@ -288,7 +309,7 @@ export class SyncController {
     const size = Math.abs(drift);
     if (size < l.ignoreBelow) return;
     if (size > l.seekAbove) {
-      this.player.seek(expectedPosition(this.state, now));
+      this.seekPlayer(expectedPosition(this.state, now));
       this.commanded(now);
       return;
     }
@@ -304,7 +325,7 @@ export class SyncController {
     if (caughtUp) return this.endNudge();
     if (Math.abs(drift) > l.seekAbove) {
       this.endNudge();
-      this.player.seek(expectedPosition(this.state, now));
+      this.seekPlayer(expectedPosition(this.state, now));
       this.commanded(now);
     }
   }

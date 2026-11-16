@@ -659,7 +659,7 @@ body.together-open #page { display: none; }
 .tg-load .btn { flex: none; }
 .tg-stage { margin-top: 12px; }
 /* YouTube requires the player to stay visible and at least 200x200. */
-.tg-player { position: relative; aspect-ratio: 16 / 9; min-width: 200px; min-height: 200px; background: #000; border-radius: 10px; overflow: hidden; }
+.tg-player { position: relative; aspect-ratio: 16 / 9; max-height: calc(100vh - 300px); width: 100%; min-width: 200px; min-height: 200px; background: #000; border-radius: 10px; overflow: hidden; }
 .tg-player iframe, #tg-yt { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .tg-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); padding: 20px; text-align: center; }
 #together.has-video .tg-empty { display: none; }

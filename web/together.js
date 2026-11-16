@@ -431,6 +431,15 @@ root.addEventListener('submit', (event) => {
 // ---------- What app.js calls ----------
 
 window.Together = {
+  /** For debugging from the browser console: what the sync logic currently sees. */
+  inspect() {
+    const c = T.controller;
+    return c && {
+      serverNow: serverNow(), state: c.state, snapshot: c.snapshot, drift: c.drift(),
+      guardFor: c.guardUntil - serverNow(), seekAhead: c.seekAhead, lastDriftSeekAgo: serverNow() - c.lastDriftSeek,
+      clockOffset: T.clockOffset, hidden: document.hidden,
+    };
+  },
   /** Called on every navigation with the current path, profile name and settings. */
   onRoute(path, profileName, settings) {
     T.onPage = path === '/together' && Boolean(profileName);
