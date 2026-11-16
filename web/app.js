@@ -158,6 +158,7 @@ function toast(msg, kind = '') {
 // ---------- Profile gate ----------
 
 function renderGate(manage = false) {
+  window.Together.onRoute(route().path, null, S.settings);
   S.pageKey = null;
   closeModal(true);
   const tiles = S.profiles.map((p) => `
@@ -273,6 +274,7 @@ function renderShell() {
         <a href="#/shows" data-nav="/shows">TV Shows</a>
         <a href="#/movies" data-nav="/movies">Movies</a>
         <a href="#/list" data-nav="/list">My List</a>
+        <a href="#/together" data-nav="/together">Watch Together</a>
       </nav>
       <div class="nav-right">
         <span class="scan-indicator" id="scan-indicator" hidden></span>
@@ -328,6 +330,8 @@ window.addEventListener('scroll', onScroll, { passive: true });
 // ---------- Routing ----------
 
 async function render() {
+  // The Watch Together page draws itself (see together.js); tell it where we are.
+  window.Together.onRoute(route().path, S.profile?.name, S.settings);
   if (!S.profile) return renderGate();
   if (!$('#page')) renderShell();
   const r = route();
@@ -354,6 +358,7 @@ async function renderPage(r) {
       case '/list': return await renderMyList(page);
       case '/search': return await renderSearch(page, r.params.get('q') || '');
       case '/settings': return await renderSettings(page);
+      case '/together': page.className = ''; page.innerHTML = ''; return undefined;
       default:
         if (r.path !== '/home') return void (location.hash = '/home');
         return await renderBrowse(page, 'all');
@@ -881,6 +886,11 @@ function drawSettings() {
       <label class="switch-row"><input type="checkbox" name="fullscreen" ${d.fullscreen ? 'checked' : ''}><span>Open VLC in fullscreen</span></label>
       <label class="field"><span>VLC program</span><input name="vlc" value="${esc(d.vlc)}" autocomplete="off"></label>
     </section>
+    <section class="panel">
+      <h2>Watch Together</h2>
+      <p class="hint">The sync server passes play, pause and seek between you and your partner. You both need the same address here.</p>
+      <label class="field"><span>Sync server address</span><input name="sync_server" value="${esc(d.sync_server)}" placeholder="https://…" autocomplete="off"></label>
+    </section>
     <div class="settings-actions">
       <button class="btn btn-play" data-action="save-settings">Save</button>
       <button class="btn btn-ghost" data-action="rescan">${I.refresh}<span>Rescan Now</span></button>
@@ -904,6 +914,7 @@ function readSettingsForm() {
   }
   S.draft.fullscreen = $('[name=fullscreen]', el).checked;
   S.draft.vlc = $('[name=vlc]', el).value.trim() || 'vlc';
+  S.draft.sync_server = $('[name=sync_server]', el).value.trim();
 }
 
 async function saveSettings() {
@@ -911,7 +922,8 @@ async function saveSettings() {
   try {
     const res = await api.post('/api/settings', PLATFORM === 'android'
       ? { min_size_mb: S.draft.min_size_mb, include_camera: S.draft.include_camera }
-      : { roots: S.draft.roots, min_size_mb: S.draft.min_size_mb, fullscreen: S.draft.fullscreen, vlc: S.draft.vlc });
+      : { roots: S.draft.roots, min_size_mb: S.draft.min_size_mb, fullscreen: S.draft.fullscreen, vlc: S.draft.vlc,
+          sync_server: S.draft.sync_server });
     S.settings = res.settings;
     S.draft = JSON.parse(JSON.stringify(res.settings));
     drawSettings();

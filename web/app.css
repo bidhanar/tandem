@@ -626,3 +626,52 @@ svg { display: block; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   html { scroll-behavior: auto; }
 }
+
+/* ---------- Watch Together (together.js) ---------- */
+
+body.together-open #page { display: none; }
+#together { padding: calc(var(--nav-h) + 32px) var(--gutter) 80px; max-width: 1180px; margin: 0 auto; }
+
+.tg-lobby h1 { font-size: clamp(28px, 3vw, 40px); margin: 0 0 10px; }
+.tg-lobby > .hint { max-width: 640px; }
+.tg-cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 26px 0 18px; max-width: 760px; }
+.tg-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; }
+.tg-card h2 { margin: 0 0 6px; font-size: 18px; }
+.tg-join { display: flex; gap: 10px; }
+.tg-code-input { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; }
+.tg-error { color: #ff8b7d; min-height: 1.4em; margin: 10px 0; }
+.tg-error:empty { min-height: 0; margin: 0; }
+.tg-lobby a { color: var(--accent-2); }
+
+.tg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-bottom: 18px; }
+.tg-codebox { display: flex; align-items: center; gap: 12px; }
+.tg-label { color: var(--muted); font-size: 13px; }
+.tg-code { font-size: 26px; letter-spacing: .2em; background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tg-small { height: 34px; padding: 0 14px; font-size: 14px; }
+.tg-people { display: flex; gap: 14px; color: var(--muted); font-size: 14px; }
+.tg-person i, .tg-conn i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 7px; }
+.tg-person.online { color: var(--text); }
+.tg-person.online i, .tg-conn.online i { background: var(--good); }
+.tg-conn { color: var(--muted); font-size: 14px; margin-left: auto; }
+.tg-conn.reconnecting i, .tg-conn.connecting i { background: var(--accent-2); }
+
+.tg-load { display: flex; gap: 10px; margin-bottom: 6px; }
+.tg-load .btn { flex: none; }
+.tg-stage { margin-top: 12px; }
+/* YouTube requires the player to stay visible and at least 200x200. */
+.tg-player { position: relative; aspect-ratio: 16 / 9; min-width: 200px; min-height: 200px; background: #000; border-radius: 10px; overflow: hidden; }
+.tg-player iframe, #tg-yt { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.tg-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); padding: 20px; text-align: center; }
+#together.has-video .tg-empty { display: none; }
+.tg-back { display: none; }
+.tg-status { margin-top: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Browsing elsewhere with a video loaded: the player stays in the corner. */
+#together.docked {
+  position: fixed; right: 18px; bottom: 96px; z-index: 60; width: 380px; max-width: calc(100vw - 36px);
+  padding: 0; margin: 0;
+}
+#together.docked .tg-bar, #together.docked .tg-load, #together.docked .tg-error, #together.docked .tg-status { display: none; }
+#together.docked .tg-stage { margin: 0; box-shadow: 0 12px 40px rgba(0, 0, 0, .6); border-radius: 10px; }
+#together.docked .tg-back { display: block; padding: 8px 12px; font-size: 13px; background: var(--surface-2); border-radius: 0 0 10px 10px; color: var(--text); }
+#together.docked .tg-player { border-radius: 10px 10px 0 0; }

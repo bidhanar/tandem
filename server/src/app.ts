@@ -1,0 +1,195 @@
+// Wires the room rules to Socket.IO. See docs/protocol.md for every message.
+
+import http from 'node:http';
+
+import { Server, type Socket } from 'socket.io';
+
+import { config } from './config.ts';
+import { addWaiting, applyRequest, removeWaiting, type RoomState, type StateRequest } from './room.ts';
+import { memberList, Rooms, type Room } from './rooms.ts';
+
+type Reply = (answer: unknown) => void;
+/** What we remember about a connection: which room it is in, and as whom. */
+type Seat = { code: string; clientId: string };
+
+const text = (value: unknown, maxLength: number) =>
+  typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+const isReply = (value: unknown): value is Reply => typeof value === 'function';
+
+export function createSyncServer() {
+  const rooms = new Rooms();
+  const attempts = new Map<string, number[]>(); // address -> times of recent create/join attempts
+
+  const httpServer = http.createServer((request, response) => {
+    // A plain page so a host's health check (and a curious visitor) gets an answer.
+    response.writeHead(200, { 'Content-Type': 'text/plain' });
+    response.end('Mendu sync server\n');
+  });
+  // The page is served from each person's own computer (http://127.0.0.1),
+  // so any origin may connect. Nothing here relies on cookies.
+  const io = new Server(httpServer, { cors: { origin: '*' } });
+
+  const seatOf = (socket: Socket): Seat | undefined => socket.data.seat;
+  const roomOf = (socket: Socket): { room: Room; seat: Seat } | undefined => {
+    const seat = seatOf(socket);
+    const room = seat && rooms.get(seat.code);
+    return seat && room ? { room, seat } : undefined;
+  };
+  const onlineIds = (room: Room) =>
+    [...room.members.values()].filter((m) => m.socketId !== null).map((m) => m.id);
+
+  /** Stores a new state and tells everyone in the room. */
+  function setState(room: Room, state: RoomState, now: number): void {
+    if (state === room.state) return;
+    const wasWaiting = room.state.waitingFor.length > 0;
+    room.state = state;
+    for (const member of room.members.values()) {
+      const waiting = state.waitingFor.includes(member.id);
+      if (!waiting) member.waitingSince = null;
+      else member.waitingSince ??= now;
+    }
+    if (state.waitingFor.length === 0) room.stalledSince = null;
+    else if (!wasWaiting) room.stalledSince = now;
+    io.to(room.code).emit('state:changed', { state });
+  }
+
+  /** A member is ready again, left, or took too long. */
+  function stopWaitingFor(room: Room, clientId: string, now: number): void {
+    const longStall = room.stalledSince !== null && now - room.stalledSince >= config.countdownAfterStallMs;
+    const delay = longStall && room.state.isPlaying ? config.countdownMs : 0;
+    setState(room, removeWaiting(room.state, clientId, now, delay), now);
+  }
+
+  function allowed(socket: Socket, now: number): boolean {
+    const address = socket.handshake.address;
+    const recent = (attempts.get(address) ?? []).filter((time) => now - time < 60_000);
+    recent.push(now);
+    attempts.set(address, recent);
+    return recent.length <= config.joinAttemptsPerMinute;
+  }
+
+  /** The connection stops being in its room. `forget` also gives up the seat. */
+  function leave(socket: Socket, forget: boolean): void {
+    const found = roomOf(socket);
+    socket.data.seat = undefined;
+    if (!found) return;
+    const { room, seat } = found;
+    const member = room.members.get(seat.clientId);
+    if (!member || member.socketId !== socket.id) return; // this seat has moved to a newer connection
+    const now = Date.now();
+    socket.leave(room.code);
+    member.socketId = null;
+    if (forget) room.members.delete(member.id);
+    stopWaitingFor(room, member.id, now);
+    io.to(room.code).emit('member:left', { members: memberList(room) });
+    if (onlineIds(room).length === 0) room.emptySince = now;
+  }
+
+  function join(socket: Socket, room: Room, payload: any, reply: Reply): void {
+    const clientId = text(payload?.clientId, 64);
+    if (clientId.length < 8) return reply({ ok: false, error: 'Bad request.' });
+    const name = text(payload?.name, config.maxNameLength) || 'Guest';
+    const now = Date.now();
+
+    const existing = room.members.get(clientId);
+    if (!existing && room.members.size >= config.maxMembers) {
+      return reply({ ok: false, error: 'This room is full.' });
+    }
+    leave(socket, true); // a connection is in one room at a time
+    if (existing?.socketId && existing.socketId !== socket.id) {
+      // The same person connected again (new tab, or a reconnect that beat
+      // the old connection's timeout): the new connection takes over.
+      io.sockets.sockets.get(existing.socketId)?.disconnect(true);
+    }
+
+    room.members.set(clientId, { id: clientId, name, socketId: socket.id, waitingSince: null });
+    room.emptySince = null;
+    socket.data.seat = { code: room.code, clientId } satisfies Seat;
+    socket.join(room.code);
+
+    // With something loaded, the newcomer has to load it too before anyone moves on.
+    if (room.state.mediaId !== null) setState(room, addWaiting(room.state, clientId, now), now);
+
+    const members = memberList(room);
+    reply({ ok: true, room: { code: room.code, state: room.state, members, you: clientId } });
+    socket.to(room.code).emit('member:joined', { members });
+  }
+
+  io.on('connection', (socket) => {
+    socket.on('time:ping', (payload: any, reply: unknown) => {
+      if (isReply(reply)) reply({ t0: payload?.t0, serverTime: Date.now() });
+    });
+
+    socket.on('room:create', (payload: unknown, reply: unknown) => {
+      if (!isReply(reply)) return;
+      const now = Date.now();
+      if (!allowed(socket, now)) return reply({ ok: false, error: 'Too many attempts. Wait a minute and try again.' });
+      join(socket, rooms.create(now), payload, reply);
+    });
+
+    socket.on('room:join', (payload: any, reply: unknown) => {
+      if (!isReply(reply)) return;
+      if (!allowed(socket, Date.now())) return reply({ ok: false, error: 'Too many attempts. Wait a minute and try again.' });
+      const room = rooms.get(text(payload?.code, 20));
+      if (!room) return reply({ ok: false, error: 'No room with that code. Check it with your partner.' });
+      join(socket, room, payload, reply);
+    });
+
+    socket.on('room:leave', () => leave(socket, true));
+    socket.on('disconnect', () => leave(socket, false));
+
+    socket.on('state:request', (request: StateRequest) => {
+      const found = roomOf(socket);
+      if (!found) return;
+      const now = Date.now();
+      const state = applyRequest(found.room.state, request, found.seat.clientId, onlineIds(found.room), now);
+      if (state) setState(found.room, state, now);
+    });
+
+    socket.on('buffer:start', () => {
+      const found = roomOf(socket);
+      if (!found || found.room.state.mediaId === null) return;
+      const now = Date.now();
+      setState(found.room, addWaiting(found.room.state, found.seat.clientId, now), now);
+    });
+
+    socket.on('buffer:end', () => {
+      const found = roomOf(socket);
+      if (found) stopWaitingFor(found.room, found.seat.clientId, Date.now());
+    });
+
+    socket.on('chat:send', (payload: any) => {
+      const found = roomOf(socket);
+      const message = text(payload?.text, config.maxChatLength);
+      if (!found || !message) return;
+      const name = found.room.members.get(found.seat.clientId)?.name ?? 'Guest';
+      io.to(found.room.code).emit('chat:message', { from: found.seat.clientId, name, text: message, at: Date.now() });
+    });
+
+    socket.on('reaction:send', (payload: any) => {
+      const found = roomOf(socket);
+      const emoji = text(payload?.emoji, 16);
+      if (found && emoji) io.to(found.room.code).emit('reaction', { from: found.seat.clientId, emoji });
+    });
+  });
+
+  // Once a second: stop waiting for anyone who has taken too long, and
+  // forget rooms that have stayed empty.
+  const housekeeping = setInterval(() => {
+    const now = Date.now();
+    for (const room of rooms.all()) {
+      for (const member of room.members.values()) {
+        if (member.waitingSince !== null && now - member.waitingSince > config.waitTimeoutMs) {
+          stopWaitingFor(room, member.id, now);
+        }
+      }
+    }
+    rooms.removeExpired(now, config.emptyRoomTtlMs);
+  }, 1000);
+
+  const close = () => {
+    clearInterval(housekeeping);
+    return io.close();
+  };
+  return { httpServer, io, rooms, close };
+}

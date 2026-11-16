@@ -1,0 +1,23 @@
+{
+  "name": "mendu-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mendu's sync server: rooms, clock sync and the shared playback state.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/src/index.js",
+    "test": "tsc && node --test \"dist/test/*.test.js\"",
+    "simulate": "tsc && node scripts/simulate.mjs"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "socket.io-client": "^4.8.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -225,6 +225,7 @@ export function createServer(services: Services): http.Server {
     after.roots = roots;
     after.min_size_mb = Math.max(0, after.min_size_mb);
     after.vlc ||= 'vlc';
+    after.sync_server = after.sync_server.trim().replace(/\/+$/, '') || before.sync_server;
 
     config = after;
     saveConfig(config, paths.configFile);

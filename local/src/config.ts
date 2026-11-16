@@ -11,6 +11,7 @@ export type AppConfig = {
   port: number;
   fullscreen: boolean; // open VLC fullscreen
   vlc: string; // VLC program
+  sync_server: string; // address of the sync server, for Watch Together
 };
 
 export type AppPaths = {
@@ -33,7 +34,10 @@ export function defaultPaths(): AppPaths {
 
 /** Defaults: scan the whole home folder, as Synaxis does. */
 export function defaultConfig(): AppConfig {
-  return { roots: [os.homedir()], min_size_mb: 200, port: 8585, fullscreen: false, vlc: 'vlc' };
+  return {
+    roots: [os.homedir()], min_size_mb: 200, port: 8585, fullscreen: false, vlc: 'vlc',
+    sync_server: 'http://localhost:8686',
+  };
 }
 
 /** Copies the fields present in `changes` over `base`. Throws on a wrong type. */
@@ -62,6 +66,10 @@ export function applyChanges(base: AppConfig, changes: Record<string, unknown>):
   if ('vlc' in changes) {
     expect('vlc', typeof changes.vlc === 'string');
     config.vlc = changes.vlc as string;
+  }
+  if ('sync_server' in changes) {
+    expect('sync_server', typeof changes.sync_server === 'string');
+    config.sync_server = changes.sync_server as string;
   }
   return config;
 }
