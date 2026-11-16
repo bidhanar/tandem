@@ -35,16 +35,24 @@ Two quirks of this machine (details in README "Build it yourself"):
   `libstdc++-16-dev` is installed, build with
   `CXXFLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/15` (same for
   `CFLAGS` and `LDFLAGS`).
-- The VS Code snap terminal breaks GTK apps. Run the built app with
-  `GSETTINGS_SCHEMA_DIR`, `GTK_PATH`, `GTK_EXE_PREFIX`, `GTK_IM_MODULE_FILE`,
-  `GIO_MODULE_DIR` and `LD_LIBRARY_PATH` unset and `XDG_DATA_DIRS` reset to
-  the system folders.
+- The VS Code snap terminal breaks GTK apps and GStreamer (app aborts, or
+  YouTube never starts). Run the built app under `env -i` with only `HOME`,
+  `USER`, `PATH`, `LANG`, `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`,
+  `XDG_SESSION_TYPE`, `XDG_CURRENT_DESKTOP` and `DBUS_SESSION_BUS_ADDRESS`
+  passed through.
+- `mendu <YouTube link>` loads that video at startup; with the page messages
+  logged temporarily, that is how to check YouTube playback without clicking.
 
 ## Architecture (app)
 
 - `lib/youtube/` — `YouTubePlayerAdapter` is the interface; one implementation
-  per platform WebView. `InAppWebViewYouTubeAdapter` (flutter_inappwebview,
-  WebView2) serves Windows. Linux has none yet and the screen says so.
+  per platform. Both extend `PageBridgeAdapter`, which holds the shared
+  message handling. `InAppWebViewYouTubeAdapter` (flutter_inappwebview,
+  WebView2) serves Windows. `GtkYouTubeAdapter` serves Linux: there is no
+  Flutter web view widget on Linux, so `linux/runner/youtube_view.cc` lays a
+  WebKitGTK view over the Flutter view (GtkOverlay) and the Dart side keeps it
+  positioned over an empty placeholder box via the `mendu/youtube_view`
+  method channel. Flutter can't draw on top of that view.
   `assets/player.html` hosts the official IFrame player and is served from a
   loopback HTTP server (`PlayerPageServer`), because YouTube rejects pages
   with no web origin (error 153).
@@ -59,7 +67,6 @@ Two quirks of this machine (details in README "Build it yourself"):
 - Local playback: VLC (external window), not media_kit. Keep `LocalPlayer`
   generic so media_kit can be added for Android later.
 - YouTube only; YouTube Music links are rejected.
-- Linux YouTube (WebView) is deferred.
 - Rooms hold two people by default; the limit must be a server setting.
 - Builds come from GitHub Actions; the repo is public.
 - Accepted spec changes: `waitingFor` list for buffering (separate from user

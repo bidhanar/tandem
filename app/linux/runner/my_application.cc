@@ -3,6 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "youtube_view.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -33,7 +34,7 @@ static void my_application_activate(GApplication* application) {
   // gtk_header_bar_set_show_close_button(header_bar, TRUE);
   // gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
 
-  gtk_window_set_title(window, "mendu");
+  gtk_window_set_title(window, "Mendu");
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -46,7 +47,13 @@ static void my_application_activate(GApplication* application) {
   gdk_rgba_parse(&background_color, "#000000");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
-  gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
+
+  // The Flutter view sits inside an overlay so the YouTube web view can be
+  // placed on top of it (see youtube_view.h).
+  GtkWidget* overlay = gtk_overlay_new();
+  gtk_widget_show(overlay);
+  gtk_container_add(GTK_CONTAINER(overlay), GTK_WIDGET(view));
+  gtk_container_add(GTK_CONTAINER(window), overlay);
 
   // Show the window when Flutter renders.
   // Requires the view to be realized so we can start rendering.
@@ -55,6 +62,7 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  youtube_view_register(view, GTK_OVERLAY(overlay));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

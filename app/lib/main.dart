@@ -5,12 +5,15 @@ import 'ui/local_screen.dart';
 import 'ui/theme.dart';
 import 'ui/youtube_screen.dart';
 
-void main() {
-  runApp(const ProviderScope(child: MenduApp()));
+/// `mendu <YouTube link>` opens that video straight away.
+void main(List<String> args) {
+  runApp(ProviderScope(child: MenduApp(initialLink: args.isEmpty ? null : args.first)));
 }
 
 class MenduApp extends StatelessWidget {
-  const MenduApp({super.key});
+  const MenduApp({super.key, this.initialLink});
+
+  final String? initialLink;
 
   @override
   Widget build(BuildContext context) {
@@ -18,14 +21,16 @@ class MenduApp extends StatelessWidget {
       title: 'Mendu',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const HomeScreen(),
+      home: HomeScreen(initialLink: initialLink),
     );
   }
 }
 
 /// Phase 1: two tabs, one per kind of player. Rooms and sync come in Phase 2.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.initialLink});
+
+  final String? initialLink;
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +48,12 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         // Both tabs stay alive so switching doesn't stop a player.
-        body: const TabBarView(
-          physics: NeverScrollableScrollPhysics(),
-          children: [_KeepAlive(child: YouTubeScreen()), _KeepAlive(child: LocalScreen())],
+        body: TabBarView(
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _KeepAlive(child: YouTubeScreen(initialLink: initialLink)),
+            const _KeepAlive(child: LocalScreen()),
+          ],
         ),
       ),
     );

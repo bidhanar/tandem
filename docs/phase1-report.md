@@ -7,7 +7,7 @@ else is written but not yet run.
 | --- | --- | --- |
 | App builds and starts | Verified (debug build; ran without errors, screens not yet clicked through) | Not yet: needs the first GitHub Actions run |
 | Local file via VLC | Controller verified against VLC 3.0.23 (headless); UI not yet run | Not yet run |
-| YouTube | Deferred (no WebView chosen) | Not yet run |
+| YouTube | Verified: loads, starts without a click, position reads back. Placement on screen not yet looked at | Not yet run |
 | Unit tests (URL parsing, VLC status) | Pass | Same code |
 
 ## Verified
@@ -15,6 +15,11 @@ else is written but not yet run.
 - **VLC control works.** `tool/vlc_probe.dart` opened a file, paused, seeked
   to 42.5 s (VLC landed on 42.500), resumed, changed speed to 1.05x and back,
   and closed, all through VLC's HTTP interface.
+
+- **YouTube plays on Linux.** Started with a link on the command line, the
+  embedded player loaded, began playing with no click, and reported its
+  position advancing (3.9 s, then 17.9 s fourteen seconds later). No error 153,
+  so YouTube accepts the app's `127.0.0.1` player page under WebKitGTK.
 
 ## Findings
 
@@ -28,10 +33,20 @@ else is written but not yet run.
   rounding for the same file, so it cancels out between two VLC players. It
   would not cancel against a different player (for example media_kit on
   Android later).
+- **Linux has no Flutter web view, so the app brings its own.** The window
+  code places a WebKitGTK view over the Flutter view. It works, with one
+  limit: Flutter can't draw anything on top of the player (menus, dialogs,
+  floating reactions).
+- **NVIDIA workaround.** On machines with NVIDIA's proprietary driver the app
+  sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`, the same workaround Synaxis uses,
+  because WebKitGTK can abort with its default renderer there. On this machine
+  the abort only appeared inside the VS Code snap terminal, so the workaround
+  may not be needed; it is kept as a precaution and could cost some video
+  smoothness.
 - **Two Linux setup problems**, both from this machine's setup rather than
   the app, and both described in the README: clang looked for a C++ library
   version that isn't installed, and the VS Code snap terminal makes GTK apps
-  exit at startup.
+  exit at startup and stops YouTube videos from starting.
 - **Flutter 3.50 moved Material widgets** into the `material_ui` package.
   No problem, only a different import.
 

@@ -18,7 +18,7 @@ VLC must be installed.
 8. Choose a second file while the first is playing. The first VLC closes, the new one opens.
 9. Try a file with spaces and non-English characters in its name.
 
-### YouTube (Windows only for now)
+### YouTube (Linux and Windows)
 
 1. Open the **YouTube** tab. "Player loading…" changes to a state line within a few seconds.
 2. Paste each link shape and press Load; the video should start **without clicking the player**:
@@ -32,5 +32,8 @@ VLC must be installed.
 7. Note whether an ad plays before the video, and whether the player offers a
    way to sign in to your Google account (this decides whether Premium applies).
 8. Resize the window small. The player never drops below 200x200.
+9. Linux only: resize and maximise the window, and switch to the Local file
+   tab and back. The player should stay exactly inside its black area and
+   disappear while the other tab is open.
 
 Report for each step: worked / didn't, and what you saw.

@@ -20,12 +20,21 @@
   <div id="player"></div>
   <script>
     // ---- page -> app -------------------------------------------------------
-    var bridgeReady = !!(window.flutter_inappwebview && window.flutter_inappwebview.callHandler);
+    // Two bridges, depending on which web view hosts the page:
+    //   Linux (WebKitGTK):               window.webkit.messageHandlers.mendu
+    //   Windows (flutter_inappwebview):  window.flutter_inappwebview, which
+    //                                    isn't usable until its ready event
+    var webkitBridge = window.webkit && window.webkit.messageHandlers &&
+        window.webkit.messageHandlers.mendu;
+    var bridgeReady = !!webkitBridge ||
+        !!(window.flutter_inappwebview && window.flutter_inappwebview.callHandler);
     var outbox = [];
 
     function post(message) {
       if (!bridgeReady) { outbox.push(message); return; }
-      window.flutter_inappwebview.callHandler('mendu', JSON.stringify(message));
+      var text = JSON.stringify(message);
+      if (webkitBridge) webkitBridge.postMessage(text);
+      else window.flutter_inappwebview.callHandler('mendu', text);
     }
 
     window.addEventListener('flutterInAppWebViewPlatformReady', function () {

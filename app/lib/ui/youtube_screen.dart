@@ -10,7 +10,10 @@ import 'transport_controls.dart';
 /// Phase 1 screen: paste a YouTube link, play it in the embedded player and
 /// drive it from Flutter.
 class YouTubeScreen extends StatefulWidget {
-  const YouTubeScreen({super.key});
+  const YouTubeScreen({super.key, this.initialLink});
+
+  /// A link to load as soon as the player is ready.
+  final String? initialLink;
 
   @override
   State<YouTubeScreen> createState() => _YouTubeScreenState();
@@ -33,6 +36,10 @@ class _YouTubeScreenState extends State<YouTubeScreen> {
     _subscriptions.add(player.errors.listen(
       (code) => setState(() => _message = youTubeErrorMessage(code)),
     ));
+    if (widget.initialLink != null) {
+      _url.text = widget.initialLink!;
+      _load();
+    }
   }
 
   @override
@@ -59,8 +66,7 @@ class _YouTubeScreenState extends State<YouTubeScreen> {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            "YouTube isn't available on Linux yet. Local files work here; "
-            'YouTube works in the Windows app.',
+            "YouTube isn't available on this kind of device yet.",
             textAlign: TextAlign.center,
           ),
         ),

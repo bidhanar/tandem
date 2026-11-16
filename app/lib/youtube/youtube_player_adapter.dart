@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
+import 'gtk_youtube_adapter.dart';
 import 'inappwebview_youtube_adapter.dart';
 
 /// The IFrame API's player states (the numbers are YouTube's).
@@ -63,7 +64,8 @@ abstract class YouTubePlayerAdapter {
 /// The adapter for this platform, or null where YouTube isn't supported yet.
 YouTubePlayerAdapter? createYouTubePlayerAdapter() {
   if (Platform.isWindows) return InAppWebViewYouTubeAdapter();
-  return null; // Linux: WebView choice still to be made.
+  if (Platform.isLinux) return GtkYouTubeAdapter();
+  return null;
 }
 
 /// A message for the person watching, for an IFrame API error code.
