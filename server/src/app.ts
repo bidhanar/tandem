@@ -5,6 +5,7 @@ import http from 'node:http';
 import { Server, type Socket } from 'socket.io';
 
 import { config } from './config.ts';
+import { addToQueue, removeFromQueue, takeFromQueue, type QueueItem } from './queue.ts';
 import { addWaiting, applyRequest, removeWaiting, type RoomState, type StateRequest } from './room.ts';
 import { memberList, Rooms, type Room } from './rooms.ts';
 
@@ -51,6 +52,24 @@ export function createSyncServer() {
     if (state.waitingFor.length === 0) room.stalledSince = null;
     else if (!wasWaiting) room.stalledSince = now;
     io.to(room.code).emit('state:changed', { state });
+  }
+
+  function setQueue(room: Room, queue: QueueItem[]): void {
+    if (queue === room.queue) return;
+    room.queue = queue;
+    io.to(room.code).emit('queue:changed', { queue });
+  }
+
+  /** Starts the next queued video (or the given entry). Returns whether there was one. */
+  function playFromQueue(room: Room, clientId: string, entryId?: unknown): boolean {
+    const { item, queue } = takeFromQueue(room.queue, entryId);
+    if (!item) return false;
+    const now = Date.now();
+    const request: StateRequest = { action: 'load', mediaType: 'youtube', mediaId: item.mediaId, position: 0 };
+    const state = applyRequest(room.state, request, clientId, onlineIds(room), now);
+    if (state) setState(room, state, now);
+    setQueue(room, queue);
+    return true;
   }
 
   /** A member is ready again, left, or took too long. */
@@ -127,7 +146,7 @@ export function createSyncServer() {
     if (arrived && room.state.mediaId !== null) setState(room, addWaiting(room.state, clientId, now), now);
 
     const members = memberList(room);
-    reply({ ok: true, room: { code: room.code, state: room.state, members, you: clientId } });
+    reply({ ok: true, room: { code: room.code, state: room.state, queue: room.queue, members, you: clientId } });
     if (arrived) socket.to(room.code).emit('member:joined', { members });
   }
 
@@ -172,6 +191,38 @@ export function createSyncServer() {
     socket.on('buffer:end', () => {
       const found = roomOf(socket);
       if (found) stopWaitingFor(found.room, found.seat.clientId, Date.now());
+    });
+
+    socket.on('queue:add', (payload: any) => {
+      const found = roomOf(socket);
+      if (!found) return;
+      setQueue(found.room, addToQueue(found.room.queue, payload?.mediaIds, found.seat.clientId));
+      // With nothing loaded yet, the first one starts straight away.
+      if (found.room.state.mediaId === null) playFromQueue(found.room, found.seat.clientId);
+    });
+
+    socket.on('queue:remove', (payload: any) => {
+      const found = roomOf(socket);
+      if (found) setQueue(found.room, removeFromQueue(found.room.queue, payload?.id));
+    });
+
+    socket.on('queue:clear', () => {
+      const found = roomOf(socket);
+      if (found && found.room.queue.length > 0) setQueue(found.room, []);
+    });
+
+    // Play a queued video now, ahead of its turn.
+    socket.on('queue:play', (payload: any) => {
+      const found = roomOf(socket);
+      if (found && typeof payload?.id === 'string') playFromQueue(found.room, found.seat.clientId, payload.id);
+    });
+
+    // A video finished on someone's device. Everyone reports this, so it
+    // only counts while that video is still the room's current one.
+    socket.on('media:ended', (payload: any) => {
+      const found = roomOf(socket);
+      if (!found || found.room.state.mediaId === null || payload?.mediaId !== found.room.state.mediaId) return;
+      playFromQueue(found.room, found.seat.clientId);
     });
 
     socket.on('chat:send', (payload: any) => {

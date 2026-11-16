@@ -65,10 +65,15 @@ Questions with an answer use Socket.IO acknowledgements.
 | `state:request` | `{action, position?, mediaType?, mediaId?, mediaTitle?}` | none; a `state:changed` follows if accepted |
 | `buffer:start` | none | none |
 | `buffer:end` | none | none |
+| `queue:add` | `{mediaIds}` (YouTube video ids) | none; `queue:changed` follows |
+| `queue:remove` | `{id}` | none |
+| `queue:clear` | none | none |
+| `queue:play` | `{id}`: play this entry now | none |
+| `media:ended` | `{mediaId}` | none |
 | `chat:send` | `{text}` | none |
 | `reaction:send` | `{emoji}` | none |
 
-`room` is `{code, state, members, you}`. `clientId` is a random id the
+`room` is `{code, state, queue, members, you}`. `clientId` is a random id the
 client makes once and keeps, so a reconnect is recognised as the same person.
 `action` is `play`, `pause`, `seek` or `load`.
 
@@ -79,6 +84,7 @@ client makes once and keeps, so a reconnect is recognised as the same person.
 | `state:changed` | `{state}` |
 | `member:joined` | `{members}` |
 | `member:left` | `{members}` |
+| `queue:changed` | `{queue}`, entries `{id, mediaId, addedBy}` |
 | `chat:message` | `{from, name, text, at}` |
 | `reaction` | `{from, emoji}` |
 
@@ -103,6 +109,19 @@ client makes once and keeps, so a reconnect is recognised as the same person.
   `waitingFor`, so one broken player can't hold the room forever.
 - **Disconnecting** keeps the member's seat (shown offline) and removes them
   from `waitingFor`. `room:leave` gives the seat up.
+- **One person, several connections.** A person's page and their local
+  program (which drives VLC) join with the same `clientId` and share one
+  seat. They are offline only when every connection is gone. `room:leave`
+  from any of them removes them all.
+- **Queue.** YouTube videos wait in `queue`. `queue:add` to a room with
+  nothing loaded starts the first one. When a video finishes, every client
+  sends `media:ended`; it counts only while that video is still the room's
+  current one, so the next entry starts exactly once.
+- **Local files.** `mediaId` is `v1.<hash>.<size>.<seconds>`: the first 32
+  hex digits of a SHA-256 over the file's first and last 4 MB, its size in
+  bytes, and its length. A client plays a file whose size and hash match;
+  failing that it may offer files of the same length (within 1 s) as
+  "another version", to be played only if the person agrees.
 - **Rooms** hold 2 people by default (`MAX_MEMBERS`), have a 6-character
   code from an alphabet without look-alike characters, and are forgotten
   after 10 minutes with nobody connected.

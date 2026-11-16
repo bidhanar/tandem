@@ -2,6 +2,7 @@
 
 import crypto from 'node:crypto';
 
+import type { QueueItem } from './queue.ts';
 import { emptyState, type RoomState } from './room.ts';
 
 export type Member = {
@@ -18,6 +19,7 @@ export type Member = {
 export type Room = {
   code: string;
   state: RoomState;
+  queue: QueueItem[]; // YouTube videos lined up to play next
   members: Map<string, Member>;
   emptySince: number | null; // when the last person disconnected
   stalledSince: number | null; // when state.waitingFor last went from empty to not
@@ -45,7 +47,7 @@ export class Rooms {
     do {
       code = Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
-    const room: Room = { code, state: emptyState(now), members: new Map(), emptySince: null, stalledSince: null };
+    const room: Room = { code, state: emptyState(now), queue: [], members: new Map(), emptySince: null, stalledSince: null };
     this.rooms.set(code, room);
     return room;
   }

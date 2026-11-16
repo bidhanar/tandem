@@ -8,7 +8,7 @@
 
 import { SYNC_CONFIG } from './sync-config.js';
 import { bestOffset, expectedPosition, isRolling, SyncController } from './sync-core.js';
-import { parseYouTubeId } from './youtube-url.js';
+import { parseYouTubeLinks } from './youtube-url.js';
 
 const root = document.getElementById('together');
 const $ = (selector) => root.querySelector(selector);
@@ -37,6 +37,10 @@ const T = {
   name: 'Guest',
   profileId: null,
   local: null, // what the local program says about the room's local file (from /api/status)
+  queue: [], // YouTube videos lined up to play next: [{ id, mediaId, addedBy }]
+  titles: new Map(), // YouTube video id -> { title, author }, as far as we know them
+  onRoomVideo: null, // the room's video id, once our player has been seen showing it
+  endedSent: null, // the video whose ending we have reported
   serverUrl: '',
   socket: null,
   connection: 'offline', // 'offline' | 'connecting' | 'online' | 'reconnecting'
@@ -108,6 +112,10 @@ async function connect() {
     drawConnection();
   });
   socket.on('state:changed', ({ state }) => applyState(state));
+  socket.on('queue:changed', ({ queue }) => {
+    T.queue = queue;
+    drawQueue();
+  });
   socket.on('member:joined', ({ members }) => membersChanged(members, 'joined'));
   socket.on('member:left', ({ members }) => membersChanged(members, 'left'));
 
@@ -151,7 +159,9 @@ async function enterRoom(event, payload, rejoining = false) {
     drawRoom();
     startController();
   }
+  T.queue = answer.room.queue ?? [];
   drawPeople();
+  drawQueue();
   applyState(answer.room.state, true);
 }
 
@@ -163,6 +173,7 @@ function leaveRoom() {
   remember.remove('mendu.room');
   T.room = null;
   T.state = null;
+  T.queue = [];
   T.controller = null;
   T.yt?.destroy?.();
   T.yt = null;
@@ -233,6 +244,7 @@ function applyState(state, rejoined = false) {
   T.controller.onRemoteState(state);
   layout();
   drawStatus();
+  drawNowPlaying();
 }
 
 /** Tell the sync logic what the YouTube player is doing right now. */
@@ -242,12 +254,105 @@ function reportPlayer() {
   const yt = T.yt;
   const code = yt.getPlayerState();
   const status = code === 1 ? 'playing' : code === 2 ? 'paused' : code === 3 ? 'buffering' : 'idle';
+  const showing = yt.getVideoData()?.video_id || null;
+  followPlayer(showing, code);
   T.controller.onSnapshot({
-    mediaId: yt.getVideoData()?.video_id || null,
+    mediaId: showing,
     status,
     position: yt.getCurrentTime() || 0,
     rate: yt.getPlaybackRate() || 1,
   });
+}
+
+/**
+ * Two things the player does by itself that the room should follow:
+ * finishing a video (the next one in the queue starts), and switching to
+ * another video because someone clicked one of YouTube's suggestions.
+ */
+function followPlayer(showing, code) {
+  const state = T.state;
+  if (state?.mediaType !== 'youtube' || !showing) return;
+
+  if (showing === state.mediaId) {
+    T.onRoomVideo = showing;
+    if (code === 0 && T.endedSent !== showing) {
+      T.endedSent = showing;
+      T.socket?.emit('media:ended', { mediaId: showing });
+    }
+    return;
+  }
+  // The player moved to a different video while it had been on the room's
+  // one, and not because we told it to: someone clicked a suggestion.
+  if (T.onRoomVideo === state.mediaId && T.controller.loadingId === null && (code === 1 || code === 3)) {
+    T.onRoomVideo = null;
+    T.socket?.emit('state:request', { action: 'load', mediaType: 'youtube', mediaId: showing, position: 0 });
+  }
+}
+
+/** Reads the video ids in a playlist, using a player that never plays anything. */
+async function readPlaylist(listId) {
+  await loadYouTubeApi();
+  const holder = document.createElement('div');
+  holder.className = 'tg-scratch';
+  holder.innerHTML = '<div></div>';
+  document.body.append(holder);
+  try {
+    return await new Promise((resolve) => {
+      const give = (ids) => resolve(Array.isArray(ids) ? ids : []);
+      const reader = new window.YT.Player(holder.firstChild, {
+        width: 200, height: 200,
+        playerVars: { listType: 'playlist', list: listId },
+        events: {
+          onReady: async () => {
+            for (let i = 0; i < 24; i++) {
+              const ids = reader.getPlaylist();
+              if (Array.isArray(ids) && ids.length) return give(ids);
+              await new Promise((r) => setTimeout(r, 250));
+            }
+            give([]);
+          },
+          onError: () => give([]),
+        },
+      });
+      setTimeout(() => give([]), 12_000);
+    });
+  } finally {
+    holder.remove();
+  }
+}
+
+/** Turns pasted text into video ids, opening up any playlists in it. */
+async function videosIn(text) {
+  const { videos, playlists, unknown } = parseYouTubeLinks(text);
+  for (const list of playlists) {
+    showError('Reading the playlist…');
+    const ids = await readPlaylist(list);
+    if (!ids.length) {
+      showError("Couldn't read that playlist. Is it private?");
+      return null;
+    }
+    videos.push(...ids);
+  }
+  if (!videos.length) {
+    showError("That doesn't look like a YouTube link.");
+    return null;
+  }
+  showError(unknown ? `${unknown} of those weren't YouTube links and were skipped.` : '');
+  return videos;
+}
+
+/** A video's title, fetched through the local program the first time. */
+function titleOf(videoId) {
+  const known = T.titles.get(videoId);
+  if (known) return known.title;
+  T.titles.set(videoId, { title: null });
+  fetch(`/api/youtube/title?id=${videoId}`).then((r) => r.json()).then((info) => {
+    if (!info?.title) return;
+    T.titles.set(videoId, info);
+    drawQueue();
+    drawNowPlaying();
+  }).catch(() => {});
+  return null;
 }
 
 // ---------- The YouTube player ----------
@@ -356,8 +461,9 @@ function drawRoom() {
         <button class="btn btn-outline tg-small" data-tg="leave">Leave room</button>
       </div>
       <form class="tg-load" data-tg-form="load">
-        <input class="input" name="link" placeholder="Paste a YouTube link" autocomplete="off" required>
-        <button class="btn btn-play" type="submit">Play for both</button>
+        <input class="input" name="link" placeholder="Paste YouTube links (one or several) or a playlist link" autocomplete="off" required>
+        <button class="btn btn-play" type="submit" data-mode="now">Play for both</button>
+        <button class="btn btn-secondary" type="submit" data-mode="queue">Add to queue</button>
       </form>
       <p class="tg-error" id="tg-message" role="alert"></p>
       <div class="tg-stage">
@@ -369,7 +475,9 @@ function drawRoom() {
         <div class="tg-local" id="tg-local"></div>
         <a class="tg-back" href="#/together">Back to the room</a>
       </div>
+      <div class="tg-now" id="tg-now"></div>
       <div class="tg-status" id="tg-status"></div>
+      <div class="tg-queue" id="tg-queue"></div>
     </div>`;
   drawConnection();
 }
@@ -389,6 +497,39 @@ function drawConnection() {
   const label = { online: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', offline: 'Offline' }[T.connection];
   box.className = `tg-conn ${T.connection}`;
   box.innerHTML = `<i></i>${label}`;
+}
+
+function drawNowPlaying() {
+  const box = $('#tg-now');
+  if (!box) return;
+  const state = T.state;
+  box.textContent = state?.mediaType === 'youtube' && state.mediaId ? (titleOf(state.mediaId) ?? '') : '';
+}
+
+/** A long playlist isn't drawn (or its titles looked up) all at once. */
+const QUEUE_SHOWN = 30;
+
+function drawQueue() {
+  const box = $('#tg-queue');
+  if (!box || !T.room) return;
+  if (!T.queue.length) return void (box.innerHTML = '');
+  const nameOf = (id) => (id === T.room.you ? 'you' : T.room.members.find((m) => m.id === id)?.name ?? 'your partner');
+  box.innerHTML = `
+    <div class="tg-queue-head">
+      <h3>Up next · ${T.queue.length}</h3>
+      <button class="btn btn-outline tg-small" data-tg="queue-clear">Clear</button>
+    </div>
+    <ol>${T.queue.slice(0, QUEUE_SHOWN).map((item) => `
+      <li>
+        <img src="https://i.ytimg.com/vi/${esc(item.mediaId)}/mqdefault.jpg" alt="" loading="lazy">
+        <div class="tg-queue-text">
+          <b>${esc(titleOf(item.mediaId) ?? 'YouTube video')}</b>
+          <span>added by ${esc(nameOf(item.addedBy))}</span>
+        </div>
+        <button class="btn btn-secondary tg-small" data-tg="queue-play" data-id="${esc(item.id)}">Play now</button>
+        <button class="btn btn-outline tg-small" data-tg="queue-remove" data-id="${esc(item.id)}" aria-label="Remove from queue">Remove</button>
+      </li>`).join('')}</ol>
+    ${T.queue.length > QUEUE_SHOWN ? `<p class="hint">…and ${T.queue.length - QUEUE_SHOWN} more.</p>` : ''}`;
 }
 
 const megabytes = (bytes) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`);
@@ -489,6 +630,9 @@ root.addEventListener('click', (event) => {
   switch (button.dataset.tg) {
     case 'create': return void enterRoom('room:create', {});
     case 'leave': return leaveRoom();
+    case 'queue-play': return void T.socket?.emit('queue:play', { id: button.dataset.id });
+    case 'queue-remove': return void T.socket?.emit('queue:remove', { id: button.dataset.id });
+    case 'queue-clear': return void T.socket?.emit('queue:clear');
     case 'use-file': return void tellLocal('use', { file: button.dataset.file }).then(watchLocal);
     case 'reopen': return void tellLocal('reopen').then(watchLocal);
     case 'copy':
@@ -506,11 +650,16 @@ root.addEventListener('submit', (event) => {
     enterRoom('room:join', { code: form.code.value });
   }
   if (form.dataset.tgForm === 'load') {
-    const id = parseYouTubeId(form.link.value);
-    if (!id) return showError("That doesn't look like a YouTube video link.");
-    showError('');
+    const playNow = event.submitter?.dataset.mode !== 'queue';
+    const text = form.link.value;
     form.link.value = '';
-    T.socket?.emit('state:request', { action: 'load', mediaType: 'youtube', mediaId: id, position: 0 });
+    videosIn(text).then((videos) => {
+      if (!videos || !T.socket) return;
+      // "Play for both" starts the first one now; anything else waits its turn.
+      if (playNow) T.socket.emit('state:request', { action: 'load', mediaType: 'youtube', mediaId: videos.shift(), position: 0 });
+      if (videos.length) T.socket.emit('queue:add', { mediaIds: videos });
+      if (videos.length) notify(`${videos.length} added to the queue`);
+    });
   }
 });
 

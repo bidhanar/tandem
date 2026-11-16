@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { parseYouTubeId } from '../youtube-url.js';
+import { parseYouTubeId, parseYouTubeLinks } from '../youtube-url.js';
 
 const id = 'dQw4w9WgXcQ';
 
@@ -38,4 +38,13 @@ test('rejects everything else', () => {
   ]) {
     assert.equal(parseYouTubeId(link), null, String(link));
   }
+});
+
+test('several pasted links: videos in order, playlists apart, the rest counted', () => {
+  const other = 'aqz-KE-bpKQ';
+  const text = `https://youtu.be/${id}
+    https://www.youtube.com/watch?v=${other}&list=PLabcdefghij123, nonsense
+    https://www.youtube.com/playlist?list=PLabcdefghij123  ${id}`;
+  assert.deepEqual(parseYouTubeLinks(text), { videos: [id, other, id], playlists: ['PLabcdefghij123'], unknown: 1 });
+  assert.deepEqual(parseYouTubeLinks(''), { videos: [], playlists: [], unknown: 0 });
 });

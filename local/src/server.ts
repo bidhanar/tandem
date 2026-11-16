@@ -188,6 +188,32 @@ export function createServer(services: Services): http.Server {
     return { ok: true, start };
   });
 
+  // ---- YouTube titles ----
+
+  // The page can't ask YouTube for a video's title itself (browsers block
+  // it), so it asks here. This uses YouTube's public oEmbed address.
+  const titles = new Map<string, { title: string | null; author: string | null }>();
+  route('GET', /^\/api\/youtube\/title$/, async ({ query }) => {
+    const id = query.get('id') ?? '';
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) throw new ApiError(400, 'bad request');
+    let known = titles.get(id);
+    if (!known) {
+      known = { title: null, author: null };
+      try {
+        const watch = encodeURIComponent(`https://www.youtube.com/watch?v=${id}`);
+        const response = await fetch(`https://www.youtube.com/oembed?url=${watch}&format=json`, { signal: AbortSignal.timeout(6000) });
+        if (response.ok) {
+          const data = (await response.json()) as { title?: string; author_name?: string };
+          known = { title: data.title ?? null, author: data.author_name ?? null };
+        }
+        if (response.ok || response.status === 401 || response.status === 404) titles.set(id, known);
+      } catch {
+        // offline or slow: answer "unknown" now and try again next time
+      }
+    }
+    return known;
+  });
+
   // ---- Watch Together (local files) ----
 
   const failed = (error: unknown) => new ApiError(409, (error as Error).message);
