@@ -10,8 +10,8 @@ it and win over it.
 ## Layout
 
 ```
-local/    The program each person runs (Node + TypeScript, no runtime
-          dependencies). Serves the page on localhost, scans video folders,
+local/    The program each person runs (Node + TypeScript; its one runtime
+          dependency is socket.io-client). Serves the page on localhost, scans video folders,
           launches and controls VLC.
 web/      The page (plain JS/CSS, no framework, no build). app.js/app.css are
           Synaxis's, renamed. together.js is the Watch Together page;
@@ -70,9 +70,14 @@ properties).
    smooths VLC's stepped position. Measured ~0.1 s apart on one machine.
 5. Done: shared YouTube queue (several links, playlist links, auto-advance).
 6. Done: packaging (scripts/package.sh). The Windows zip is unverified.
-7. Next: deploy the sync server (needs the owner to push and make an
-   account), chat and reactions UI (reactions beside the YouTube player,
-   never over it), optional YouTube search (needs a YouTube Data API key).
+7. Done: rooms are rebuilt after a server restart (clients send `restore`
+   on rejoin); closing the tab shows you offline (page check-in, see
+   docs/protocol.md).
+8. Next: deploy the sync server (needs the owner to push and make a Render
+   account), test the Windows package and ads/Premium on real machines,
+   chat and reactions UI (reactions beside the YouTube player, never over
+   it), partner connection quality, GitHub Actions for tests and releases,
+   optional YouTube search (needs a YouTube Data API key).
 
 ## Decisions
 
