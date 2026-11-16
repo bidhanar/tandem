@@ -1,39 +1,32 @@
 # Manual test checklist
 
-The two-device sync checklist is added in Phase 2. This is the Phase 1 list.
+The two-device sync checklist is added with the sync server. This is the
+list for the library and VLC playback.
 
-## Phase 1: players on their own
+Start with `cd local && npm install && npm start`.
 
-### Local file (Linux and Windows)
+## Library
 
-VLC must be installed.
+1. The browser opens and shows your videos in rows. A scan indicator shows
+   in the top bar while it's still working.
+2. Movies and shows are separated (TV Shows / Movies at the top). Episodes of
+   one show are grouped under a single card.
+3. Cards get artwork within a minute or two (needs FFmpeg).
+4. Click a card: the title page opens with episodes or file details.
+5. Type in the search box: matching titles appear.
+6. Profile menu, Settings: add a folder, save, and the library rescans.
+   Adding a folder that doesn't exist shows an error.
 
-1. Open the **Local file** tab and choose a video. A VLC window opens and plays.
-2. Press pause in Mendu. VLC pauses; the button turns into Play.
-3. Press play. VLC resumes.
-4. Drag the seek bar to the middle and release. VLC jumps there.
-5. Watch the position readout: it advances while playing and holds while paused.
-6. Pause or seek inside the VLC window itself. Mendu follows within half a second.
-7. Close the VLC window. Mendu shows "No file open".
-8. Choose a second file while the first is playing. The first VLC closes, the new one opens.
-9. Try a file with spaces and non-English characters in its name.
+## Playback
 
-### YouTube (Linux and Windows)
-
-1. Open the **YouTube** tab. "Player loading…" changes to a state line within a few seconds.
-2. Paste each link shape and press Load; the video should start **without clicking the player**:
-   - `https://www.youtube.com/watch?v=aqz-KE-bpKQ`
-   - `https://youtu.be/aqz-KE-bpKQ?t=30`
-   - `https://www.youtube.com/shorts/<any short>`
-3. Pause, play and seek from the Mendu controls. The player follows.
-4. Pause and seek using the player's own controls. The Mendu readout follows.
-5. Paste a video with embedding disabled. A message explains the owner doesn't allow it.
-6. Paste nonsense text. A message says it isn't a YouTube link.
-7. Note whether an ad plays before the video, and whether the player offers a
-   way to sign in to your Google account (this decides whether Premium applies).
-8. Resize the window small. The player never drops below 200x200.
-9. Linux only: resize and maximise the window, and switch to the Local file
-   tab and back. The player should stay exactly inside its black area and
-   disappear while the other tab is open.
+1. Press Play on a title. VLC opens and plays it; a "Playing in VLC" bar
+   appears at the bottom of the page with the time advancing.
+2. Pause in VLC. The bar says "Paused in VLC".
+3. Close VLC partway through. The title appears under Continue Watching, and
+   pressing Play resumes where you stopped.
+4. Press the stop button in the bar. VLC closes.
+5. For a show, let an episode finish (or seek near the end): VLC moves on to
+   the next episode.
+6. Mark a title watched and unwatched from its page.
 
 Report for each step: worked / didn't, and what you saw.

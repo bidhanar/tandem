@@ -1,62 +1,59 @@
 # Mendu
 
-Watch YouTube videos and local video files together with someone far away,
-in sync. Each device plays its own copy; only play, pause and seek messages
-travel between you.
+Watch YouTube videos and your own video files together with someone far
+away, in sync. Each person plays their own copy; only play, pause and seek
+messages travel between you.
 
-Status: **Phase 1** (players work on their own; no rooms or sync yet).
-Windows and Linux.
+Status: the library and VLC playback work. Rooms and sync are not built yet.
 
-## Get the app
+## What it is
 
-Every push builds the apps: open the latest run on the repository's Actions
-tab and download `mendu-windows-x64` or `mendu-linux-x64` from Artifacts.
+A small program you run on your computer (Windows or Linux). It opens a page
+in your browser that shows your videos like a streaming service: movies and
+shows, episodes grouped by season, artwork, and where you stopped. Pressing
+Play opens the video in VLC.
 
-- **Windows:** unzip and run `mendu.exe`. Needs [VLC](https://www.videolan.org/vlc/)
-  for local files. The WebView2 runtime it uses ships with Windows 10 and 11.
-- **Linux:** `tar xzf mendu-linux-x64.tar.gz && ./bundle/mendu`. Needs VLC,
-  WebKitGTK and the GStreamer codecs:
-  `sudo apt install vlc libwebkit2gtk-4.1-0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav`.
+The interface and library logic come from
+[Synaxis](https://github.com/bidhanar/synaxis).
 
-## Build it yourself
+## Run it
 
-Install [Flutter](https://docs.flutter.dev/get-started/install) 3.50 or newer.
+You need:
 
-Linux also needs:
+- [Node.js](https://nodejs.org/) 20.11 or newer
+- [VLC](https://www.videolan.org/vlc/)
+- Optional: [FFmpeg](https://ffmpeg.org/) (`ffmpeg` and `ffprobe` on your
+  PATH) for artwork, durations and quality badges
+
+On Ubuntu: `sudo apt install nodejs npm vlc ffmpeg`.
 
 ```sh
-sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-  libwebkit2gtk-4.1-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav vlc
+cd local
+npm install
+npm start
 ```
 
-Two Linux problems you may hit:
+Your browser opens `http://127.0.0.1:8585/`. The first run scans your home
+folder for videos larger than 200 MB; change the folders and the size limit
+in Settings (profile menu, top right). Quit with Ctrl+C in the terminal or
+"Quit Mendu" in the profile menu.
 
-- **`cannot find -lstdc++` during the build.** clang is using a GCC version
-  whose C++ library isn't installed. `clang++ -v` names the version it
-  selected; install the matching package, for example
-  `sudo apt install libstdc++-16-dev`.
-- **Started from the terminal inside the VS Code snap, the app exits at once
-  with a `GLib-GIO-ERROR`, or YouTube videos load but never start.** That
-  terminal points GTK and GStreamer at the snap's own files. Start the app
-  from a normal terminal instead.
+The page only works from the same computer. Nothing is uploaded anywhere.
 
-Windows also needs Visual Studio 2022 with "Desktop development with C++".
+## Develop
 
 ```sh
-cd app
-flutter test
-flutter run -d linux      # or: -d windows
-flutter run -d linux -a 'https://youtu.be/aqz-KE-bpKQ'   # open a video straight away
-flutter build linux --release
-flutter build windows --release
+cd local
+npm test                               # compile and run the unit tests
+npm start -- --no-browser --port 8599  # run without opening a tab
 ```
 
 ## Documents
 
-- `docs/spec.md`: the original specification
-- `docs/protocol.md`: messages between the app, the player page and (later) the server
+- `docs/spec.md`: the original specification (written for an earlier design)
+- `docs/protocol.md`: the sync protocol (to come with the sync server)
 - `docs/testing.md`: manual test checklist
-- `docs/phase1-report.md`: what works on each platform
+- `CLAUDE.md`: architecture, decisions and conventions
 
 ## Licence
 
