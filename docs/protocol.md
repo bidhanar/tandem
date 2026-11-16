@@ -122,6 +122,11 @@ client makes once and keeps, so a reconnect is recognised as the same person.
   bytes, and its length. A client plays a file whose size and hash match;
   failing that it may offer files of the same length (within 1 s) as
   "another version", to be played only if the person agrees.
+- **Restoring.** Rooms live in memory, so a server restart loses them.
+  `room:join` may carry `restore: {mediaType, mediaId, mediaTitle, isPlaying,
+  position, queue}`, which is what the client last knew, with `position` as
+  of now. If no room has that code and the code is one the server could have
+  made, the room is rebuilt from it. Clients always send it when rejoining.
 - **Rooms** hold 2 people by default (`MAX_MEMBERS`), have a 6-character
   code from an alphabet without look-alike characters, and are forgotten
   after 10 minutes with nobody connected.
