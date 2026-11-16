@@ -32,12 +32,24 @@ export function defaultPaths(): AppPaths {
   return { configFile: path.join(config, 'mendu', 'config.json'), dataDir: path.join(data, 'mendu') };
 }
 
-/** Defaults: scan the whole home folder, as Synaxis does. */
+/**
+ * Defaults: scan the whole home folder, as Synaxis does. A package can carry
+ * its own starting values (see scripts/package.sh) in app/defaults.json, two
+ * folders above this program's own; today that is the sync server address.
+ */
 export function defaultConfig(): AppConfig {
-  return {
+  const config: AppConfig = {
     roots: [os.homedir()], min_size_mb: 200, port: 8585, fullscreen: false, vlc: 'vlc',
     sync_server: 'http://localhost:8686',
   };
+  try {
+    const file = path.resolve(import.meta.dirname, '..', '..', '..', 'defaults.json');
+    const packaged = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (typeof packaged.sync_server === 'string' && packaged.sync_server) config.sync_server = packaged.sync_server;
+  } catch {
+    // no packaged defaults
+  }
+  return config;
 }
 
 /** Copies the fields present in `changes` over `base`. Throws on a wrong type. */

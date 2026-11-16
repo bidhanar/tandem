@@ -53,6 +53,38 @@ people. Two normal windows of the same browser count as one person.
 7. Paste a different link: both switch to the new video.
 8. Paste a video that can't be embedded: a message explains why.
 
+### Queue
+
+1. Paste three links separated by spaces and press "Add to queue". With
+   nothing playing, the first starts and two appear under "Up next" with
+   their titles and pictures, on both sides.
+2. Let a video end (or seek to its last seconds): the next one starts for both.
+3. "Play now" on a queued video plays it at once; "Remove" and "Clear" work.
+4. Paste a playlist page link (`youtube.com/playlist?list=...`): its videos
+   are added.
+5. When a video ends, click one of YouTube's suggestions in the player: the
+   other person's player switches to it too.
+
+### Your own videos (VLC)
+
+You both need the same video file somewhere in your library folders.
+
+1. In a room, go to Home and press Play on a video. VLC opens on both
+   computers and starts together. The Watch Together page says "Open in VLC".
+2. Pause, play and seek in either VLC: the other follows.
+3. Pause both at the same moment and compare the pictures; listen for an
+   echo if you are on a call. They should be within about a third of a second.
+4. Rename the file on one computer and rescan: it is still found.
+5. Give one person a different copy (another resolution) and not the
+   original: they are told it isn't the exact file and offered the copy with
+   a warning. "Play this one" plays it.
+6. With no copy at all: a message names the file's size and length. The
+   other person's video starts after about 15 seconds.
+7. Close VLC on one computer: the other keeps playing. "Open it again" on the
+   Watch Together page rejoins at the right place.
+8. While a local video plays, paste a YouTube link: VLC closes and YouTube
+   plays for both.
+
 ### Trouble
 
 1. Turn off one person's network for 10 seconds. Their page says

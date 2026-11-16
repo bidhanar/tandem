@@ -1,0 +1,38 @@
+MENDU
+Watch YouTube and your own videos together with someone far away.
+
+BEFORE YOU START
+  Install VLC, the video player:  https://www.videolan.org/vlc/
+  Optional: FFmpeg, for pictures of your videos in the library.
+
+START
+  Windows:  double-click Mendu.bat
+            A black window opens and stays open; that is Mendu running.
+            Windows may ask whether to allow it. Choose "Run anyway" / "Allow".
+  Linux:    run ./mendu in a terminal
+            (also: sudo apt install vlc ffmpeg)
+
+  Your web browser opens with your video library. The first time, Mendu
+  looks through your home folder for videos larger than 200 MB. Change the
+  folders in Settings (profile picture, top right).
+
+WATCH TOGETHER
+  1. Click "Watch Together".
+  2. One of you clicks "Create room" and sends the 6-character code to the
+     other, who types it in and clicks "Join".
+  3. YouTube: paste a link and click "Play for both".
+     Your own videos: while in the room, go to your library and press Play
+     on a video. You both need the same video file on your computers.
+  Play, pause and seek on either side apply to both of you.
+
+  If it says it can't reach the sync server, open Settings and check that
+  "Sync server address" is the same on both computers.
+
+QUIT
+  Close the black window (Windows), press Ctrl+C in the terminal (Linux),
+  or choose "Quit Mendu" from the profile menu in the page.
+
+Nothing is uploaded. Your videos never leave your computer; only play,
+pause and seek messages go between you.
+
+Mendu is free software under the GNU GPL version 3 or later (LICENSE.txt).

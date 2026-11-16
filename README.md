@@ -4,8 +4,9 @@ Watch YouTube videos and your own video files together with someone far
 away, in sync. Each person plays their own copy; only play, pause and seek
 messages travel between you.
 
-Status: the library, VLC playback and watching YouTube together work.
-Watching local files together is not built yet.
+Status: the library, VLC playback, and watching YouTube and local files
+together all work on Linux. The Windows package is built but has not been
+run on Windows yet.
 
 ## What it is
 
@@ -44,8 +45,18 @@ The page only works from the same computer. Nothing is uploaded anywhere.
 ## Watch together
 
 One of you creates a room on the Watch Together page and sends the
-6-character code to the other, who joins with it. Paste a YouTube link and
-it plays for both; play, pause and seek in the player apply to both.
+6-character code to the other, who joins with it. Play, pause and seek on
+either side apply to both.
+
+- **YouTube:** paste a link and press "Play for both". You can paste several
+  links at once, or a playlist page link, and "Add to queue"; the next video
+  starts by itself when one ends. Clicking one of YouTube's suggestions in
+  the player switches both of you to it.
+- **Your own videos:** while in the room, press Play on a video in your
+  library. It opens in VLC on both computers. You both need the same file;
+  Mendu recognises it by its contents, whatever it is called. If the other
+  person only has a different copy of the same length, they can play that
+  one after a warning that sync may be off.
 
 You both need to reach the same **sync server**, a tiny program that passes
 those messages along. Set its address in Settings on both computers.
@@ -59,9 +70,24 @@ npm start          # listens on port 8686, which is Mendu's default setting
 ```
 
 For two people on different networks it has to run somewhere both can
-reach. `server/Dockerfile` builds it for any host that runs containers; the
-host must support WebSockets and give you an `https://` address. Put that
-address in Settings.
+reach. `render.yaml` sets it up on [Render](https://render.com)'s free plan
+(New > Blueprint, pick this repository); `server/Dockerfile` works on any
+other host that runs containers and supports WebSockets. Either way you get
+an `https://` address to put in Settings on both computers. On a free plan
+the server sleeps when unused, so the first connection can take a minute.
+
+## Send it to someone
+
+```sh
+MENDU_SYNC_SERVER=https://your-server.example scripts/package.sh
+```
+
+builds `release/mendu-<version>-windows-x64.zip` and
+`release/mendu-<version>-linux-x64.tar.gz`. Each holds Mendu and its own
+copy of Node.js, so the other person only needs VLC: they unzip it and
+double-click `Mendu.bat` (Windows) or run `./mendu` (Linux). `READ ME.txt`
+inside tells them the rest. `MENDU_SYNC_SERVER` is optional; it presets the
+sync server address so they don't have to type it.
 
 ## Develop
 

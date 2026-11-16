@@ -1,0 +1,13 @@
+# Runs the sync server on Render (https://render.com). In Render, choose
+# New > Blueprint and pick this repository. The free plan is enough: the
+# server sleeps after 15 minutes without connections and takes about a
+# minute to wake when someone next opens a room.
+services:
+  - type: web
+    name: mendu-sync
+    runtime: docker
+    plan: free
+    rootDir: server
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /

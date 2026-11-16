@@ -103,9 +103,15 @@ async function connect() {
       if (!first && T.room) await enterRoom('room:join', { code: T.room.code }, true);
       first = false;
       drawConnection();
+      clearTimeout(slow);
+      clearTimeout(giveUp);
+      showError('');
       resolve();
     });
-    socket.once('connect_error', () => reject(new Error('unreachable')));
+    // A free host puts the server to sleep when nobody uses it; the first
+    // connection wakes it, which takes a while. Socket.IO keeps retrying.
+    const slow = setTimeout(() => showError('Waking up the sync server. This can take up to a minute…'), 4000);
+    const giveUp = setTimeout(() => reject(new Error('unreachable')), 90_000);
   });
   socket.on('disconnect', () => {
     T.connection = 'reconnecting';

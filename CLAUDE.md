@@ -18,6 +18,9 @@ web/      The page (plain JS/CSS, no framework, no build). app.js/app.css are
           sync-config.js holds every threshold.
 server/   Sync server (Node + TypeScript + Socket.IO). room.ts is the pure
           state rules, app.ts the socket wiring, config.ts the timings.
+scripts/package.sh   builds release/ zips with a bundled Node.js; launchers
+                     and the read-me live in packaging/
+render.yaml          hosts the sync server on Render's free plan
 docs/     spec.md, protocol.md, testing.md
 ```
 
@@ -60,18 +63,22 @@ properties).
    reaction relay) with Dockerfile.
 3. Done: YouTube sync in the page, verified with the real player in two
    browser tabs.
-4. Next: local-file sync. The local program must be the sync client for VLC
-   (a hidden browser tab gets its timers throttled, so the page can't be);
-   it can import web/sync-core.js. Needs file fingerprinting and matching.
-5. Then: chat and reactions UI (reactions beside the YouTube player, never
-   over it), queue, deploying the server to a free host.
+4. Done: local-file sync. `local/src/together.ts` joins the room as a second
+   connection of the same person and drives VLC with web/sync-core.js
+   (loaded at run time). `fingerprint.ts` matches files; `positionEstimator.ts`
+   smooths VLC's stepped position. Measured ~0.1 s apart on one machine.
+5. Done: shared YouTube queue (several links, playlist links, auto-advance).
+6. Done: packaging (scripts/package.sh). The Windows zip is unverified.
+7. Next: deploy the sync server (needs the owner to push and make an
+   account), chat and reactions UI (reactions beside the YouTube player,
+   never over it), optional YouTube search (needs a YouTube Data API key).
 
 ## Decisions
 
 - No Flutter, no Android. Web page on localhost; Windows and Linux.
 - Local files play in a VLC window. VLC reports its position in steps of
-  250-500 ms, so position must be estimated from the moments the value
-  changes; the 0.3 s sync target for local files is unproven.
+  250-500 ms, so it is polled every 100 ms and the position is estimated
+  from the moments the value changes.
 - YouTube only (no YouTube Music). Never extract streams (no yt-dlp or
   similar); only the official IFrame player, visible and at least 200x200.
 - Accepted changes to the spec's sync design: a `waitingFor` list for
@@ -100,6 +107,11 @@ properties).
   to get two tabs with separate storage (two people). Player actions can be
   faked with `iframe.contentWindow.postMessage` of the IFrame API's command
   JSON. A background tab can't start playback, and its timers run once a second.
+- Testing local-file sync: run two copies of the local program with
+  different `XDG_CONFIG_HOME`/`XDG_DATA_HOME` and ports, each with its own
+  folder holding the same film, and act as the pages with socket.io-client
+  plus `POST /api/together/join`. VLC's port and password are in its
+  command line (`pgrep -af http-port`), for pressing its buttons from outside.
 - `window.Together.inspect()` in the browser console shows what the sync
   logic sees.
 - Never match your own shell with `pkill -f`: write the pattern with a
