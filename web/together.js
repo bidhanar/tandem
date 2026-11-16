@@ -35,6 +35,8 @@ function clientId() {
 const T = {
   onPage: false, // the Watch Together page is the one showing
   name: 'Guest',
+  profileId: null,
+  local: null, // what the local program says about the room's local file (from /api/status)
   serverUrl: '',
   socket: null,
   connection: 'offline', // 'offline' | 'connecting' | 'online' | 'reconnecting'
@@ -143,6 +145,8 @@ async function enterRoom(event, payload, rejoining = false) {
   const fresh = !T.room;
   T.room = { code: answer.room.code, members: answer.room.members, you: answer.room.you };
   remember.set('mendu.room', T.room.code);
+  // The local program follows the same room, so it can keep VLC in step.
+  tellLocal('join', { server: T.serverUrl, code: T.room.code, client: T.room.you, name: T.name, profile: T.profileId });
   if (fresh) {
     drawRoom();
     startController();
@@ -152,6 +156,8 @@ async function enterRoom(event, payload, rejoining = false) {
 }
 
 function leaveRoom() {
+  tellLocal('leave');
+  T.local = null;
   T.socket?.emit('room:leave');
   disconnect();
   remember.remove('mendu.room');
@@ -179,6 +185,31 @@ function membersChanged(members, what) {
   drawPeople();
 }
 
+// ---------- The local program (VLC) ----------
+
+async function tellLocal(what, body = {}) {
+  try {
+    const response = await fetch(`/api/together/${what}`, {
+      method: 'POST', headers: { 'X-Mendu': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) showError(data.error);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/** While the room plays a local file, ask the local program how that is going. */
+async function watchLocal() {
+  if (!T.room || T.state?.mediaType !== 'local') return;
+  try {
+    T.local = (await (await fetch('/api/status')).json()).together;
+  } catch { /* the program is restarting */ }
+  drawLocal();
+  drawStatus();
+}
+
 // ---------- Sync ----------
 
 function startController() {
@@ -190,6 +221,7 @@ function startController() {
     send: (event, payload) => T.socket?.emit(event, payload),
   });
   T.timers.push(setInterval(reportPlayer, 250));
+  T.timers.push(setInterval(watchLocal, 1000));
   T.timers.push(setInterval(() => T.controller?.tick(), SYNC_CONFIG.tickMs));
 }
 
@@ -242,10 +274,11 @@ const YOUTUBE_ERRORS = {
 const youtubePlayer = {
   async load(state, position) {
     if (state.mediaType !== 'youtube') {
-      return showError('Your partner started a local file. Watching local files together is not built yet.');
+      // A local file: the local program plays it in VLC. Get YouTube out of the way.
+      if (T.ytReady) T.yt.stopVideo();
+      return;
     }
     showError('');
-    root.classList.add('has-video');
     layout();
     await loadYouTubeApi();
     if (!T.room) return; // left while the player was loading
@@ -283,7 +316,7 @@ function showError(message) {
 }
 
 function drawLobby() {
-  root.classList.remove('has-video');
+  root.classList.remove('has-video', 'has-local');
   root.innerHTML = `
     <div class="tg-lobby">
       <h1>Watch Together</h1>
@@ -330,8 +363,10 @@ function drawRoom() {
       <div class="tg-stage">
         <div class="tg-player">
           <div id="tg-yt"></div>
-          <div class="tg-empty">Paste a YouTube link above to start watching together.</div>
+          <div class="tg-empty">Paste a YouTube link above to start watching together.<br>
+            To watch one of your own videos together, press Play on it in your library while you're in this room.</div>
         </div>
+        <div class="tg-local" id="tg-local"></div>
         <a class="tg-back" href="#/together">Back to the room</a>
       </div>
       <div class="tg-status" id="tg-status"></div>
@@ -356,6 +391,51 @@ function drawConnection() {
   box.innerHTML = `<i></i>${label}`;
 }
 
+const megabytes = (bytes) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`);
+
+/** The panel shown in place of the player while the room plays a local file. */
+function drawLocal() {
+  const box = $('#tg-local');
+  if (!box) return;
+  const local = T.local?.local;
+  const title = esc(T.state?.mediaTitle || 'a video');
+  if (T.state?.mediaType !== 'local' || !local) return void (box.innerHTML = '');
+
+  const expected = local.expected
+    ? `${megabytes(local.expected.size)}${local.expected.duration ? `, ${clock(local.expected.duration)} long` : ''}` : '';
+  let body;
+  switch (local.phase) {
+    case 'playing':
+      body = `<p>Open in VLC on this computer${local.file ? `: <code>${esc(local.file.name)}</code>` : ''}.
+        Play, pause and seek in VLC apply to both of you.</p>`;
+      break;
+    case 'missing':
+      body = local.alternatives.length
+        ? `<p>You don't have the exact file your partner is playing (${expected}). These are the same length, so they
+            look like other versions of it. You can play one, but sync may be off:</p>
+          <ul class="tg-files">${local.alternatives.map((f) => `
+            <li><span><code>${esc(f.name)}</code> · ${megabytes(f.size)}</span>
+              <button class="btn btn-secondary tg-small" data-tg="use-file" data-file="${f.file_id}">Play this one</button></li>`).join('')}</ul>`
+        : `<p>That file isn't in your library (${expected}). You both need the same file. If you have it, add its folder
+            in <a href="#/settings">Settings</a>; Mendu finds it by its contents, whatever it's called.</p>`;
+      break;
+    case 'closed':
+      body = `<p>VLC was closed on this computer. Your partner can keep watching.</p>
+        <button class="btn btn-secondary tg-small" data-tg="reopen">Open it again</button>`;
+      break;
+    case 'error':
+      body = `<p class="tg-error">${esc(local.message)}</p>`;
+      break;
+    default:
+      body = '<p>Looking for it in your library…</p>';
+  }
+  const html = `<h2>${title}</h2>${body}`;
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    box.innerHTML = html;
+  }
+}
+
 const clock = (seconds) => {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
@@ -378,7 +458,7 @@ function drawStatus() {
     } else if (state.isPlaying && state.updatedAt > now + 300) {
       text = `Starting in ${Math.ceil((state.updatedAt - now) / 1000)}`;
     } else if (isRolling(state, now)) {
-      const drift = T.controller?.drift();
+      const drift = state.mediaType === 'local' ? T.local?.drift : T.controller?.drift();
       const sync = drift == null ? '' : Math.abs(drift) < SYNC_CONFIG.youtube.seekThreshold
         ? ' · in sync' : ` · ${Math.abs(drift).toFixed(1)} s ${drift > 0 ? 'ahead' : 'behind'}, catching up`;
       text = `Playing · ${at}${sync}`;
@@ -391,7 +471,11 @@ function drawStatus() {
 
 /** Full page, docked in the corner, or hidden, depending on where you are. */
 function layout() {
-  const hasVideo = Boolean(T.room && T.state?.mediaId);
+  // Only a YouTube video has a player to show here; local files play in VLC.
+  const hasVideo = Boolean(T.room && T.state?.mediaId && T.state.mediaType === 'youtube');
+  root.classList.toggle('has-video', hasVideo);
+  root.classList.toggle('has-local', Boolean(T.room && T.state?.mediaType === 'local'));
+  drawLocal();
   root.hidden = !T.onPage && !hasVideo;
   root.classList.toggle('docked', !T.onPage && hasVideo);
   document.body.classList.toggle('together-open', T.onPage);
@@ -405,6 +489,8 @@ root.addEventListener('click', (event) => {
   switch (button.dataset.tg) {
     case 'create': return void enterRoom('room:create', {});
     case 'leave': return leaveRoom();
+    case 'use-file': return void tellLocal('use', { file: button.dataset.file }).then(watchLocal);
+    case 'reopen': return void tellLocal('reopen').then(watchLocal);
     case 'copy':
       return void navigator.clipboard?.writeText(T.room.code)
         .then(() => notify('Room code copied'), () => notify('Copy failed; select the code instead', 'error'));
@@ -440,10 +526,19 @@ window.Together = {
       clockOffset: T.clockOffset, hidden: document.hidden,
     };
   },
-  /** Called on every navigation with the current path, profile name and settings. */
-  onRoute(path, profileName, settings) {
+  /** Whether you are in a room right now (so the library's Play button plays for both). */
+  inRoom() {
+    return Boolean(T.room);
+  },
+
+  /** Called on every navigation with the current path, profile and settings. */
+  onRoute(path, profile, settings) {
+    const profileName = profile?.name;
     T.onPage = path === '/together' && Boolean(profileName);
-    if (profileName) T.name = profileName;
+    if (profile) {
+      T.name = profile.name;
+      T.profileId = profile.id;
+    }
     if (settings?.sync_server) T.serverUrl = settings.sync_server.replace(/\/+$/, '');
     if (!profileName) return void (root.hidden = true);
 

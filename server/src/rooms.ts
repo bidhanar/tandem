@@ -7,7 +7,11 @@ import { emptyState, type RoomState } from './room.ts';
 export type Member = {
   id: string; // the client's own permanent id
   name: string;
-  socketId: string | null; // null while disconnected
+  /**
+   * This person's live connections. Usually two: their page, and their local
+   * program (which drives VLC). Empty while they are disconnected.
+   */
+  sockets: Set<string>;
   waitingSince: number | null; // when they entered state.waitingFor
 };
 
@@ -30,7 +34,7 @@ export function normalizeCode(text: string): string {
 }
 
 export function memberList(room: Room): MemberInfo[] {
-  return [...room.members.values()].map((m) => ({ id: m.id, name: m.name, online: m.socketId !== null }));
+  return [...room.members.values()].map((m) => ({ id: m.id, name: m.name, online: m.sockets.size > 0 }));
 }
 
 export class Rooms {

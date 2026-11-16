@@ -5,7 +5,9 @@
   "description": "Mendu's local program: serves the web page, finds your videos and drives VLC.",
   "license": "GPL-3.0-or-later",
   "type": "module",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/src/main.js",
@@ -14,5 +16,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.4"
   }
 }

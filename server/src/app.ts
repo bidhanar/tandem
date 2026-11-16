@@ -36,7 +36,7 @@ export function createSyncServer() {
     return seat && room ? { room, seat } : undefined;
   };
   const onlineIds = (room: Room) =>
-    [...room.members.values()].filter((m) => m.socketId !== null).map((m) => m.id);
+    [...room.members.values()].filter((m) => m.sockets.size > 0).map((m) => m.id);
 
   /** Stores a new state and tells everyone in the room. */
   function setState(room: Room, state: RoomState, now: number): void {
@@ -75,11 +75,25 @@ export function createSyncServer() {
     if (!found) return;
     const { room, seat } = found;
     const member = room.members.get(seat.clientId);
-    if (!member || member.socketId !== socket.id) return; // this seat has moved to a newer connection
+    if (!member) return;
     const now = Date.now();
     socket.leave(room.code);
-    member.socketId = null;
-    if (forget) room.members.delete(member.id);
+    member.sockets.delete(socket.id);
+
+    if (forget) {
+      // Leaving on purpose takes the person's other connections out too.
+      for (const id of member.sockets) {
+        const other = io.sockets.sockets.get(id);
+        if (other) {
+          other.data.seat = undefined;
+          other.leave(room.code);
+        }
+      }
+      member.sockets.clear();
+      room.members.delete(member.id);
+    }
+    if (member.sockets.size > 0) return; // still here through another connection
+
     stopWaitingFor(room, member.id, now);
     io.to(room.code).emit('member:left', { members: memberList(room) });
     if (onlineIds(room).length === 0) room.emptySince = now;
@@ -95,24 +109,26 @@ export function createSyncServer() {
     if (!existing && room.members.size >= config.maxMembers) {
       return reply({ ok: false, error: 'This room is full.' });
     }
-    leave(socket, true); // a connection is in one room at a time
-    if (existing?.socketId && existing.socketId !== socket.id) {
-      // The same person connected again (new tab, or a reconnect that beat
-      // the old connection's timeout): the new connection takes over.
-      io.sockets.sockets.get(existing.socketId)?.disconnect(true);
-    }
+    // A connection is in one room at a time.
+    if (seatOf(socket)?.code !== room.code || seatOf(socket)?.clientId !== clientId) leave(socket, true);
 
-    room.members.set(clientId, { id: clientId, name, socketId: socket.id, waitingSince: null });
+    // The same person may hold several connections (their page and their
+    // local program); they share one seat.
+    const member = existing ?? { id: clientId, name, sockets: new Set<string>(), waitingSince: null };
+    const arrived = member.sockets.size === 0; // new, or back from being offline
+    member.name = name;
+    member.sockets.add(socket.id);
+    room.members.set(clientId, member);
     room.emptySince = null;
     socket.data.seat = { code: room.code, clientId } satisfies Seat;
     socket.join(room.code);
 
-    // With something loaded, the newcomer has to load it too before anyone moves on.
-    if (room.state.mediaId !== null) setState(room, addWaiting(room.state, clientId, now), now);
+    // With something loaded, someone arriving has to load it too before anyone moves on.
+    if (arrived && room.state.mediaId !== null) setState(room, addWaiting(room.state, clientId, now), now);
 
     const members = memberList(room);
     reply({ ok: true, room: { code: room.code, state: room.state, members, you: clientId } });
-    socket.to(room.code).emit('member:joined', { members });
+    if (arrived) socket.to(room.code).emit('member:joined', { members });
   }
 
   io.on('connection', (socket) => {

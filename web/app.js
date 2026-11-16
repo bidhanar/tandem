@@ -331,7 +331,7 @@ window.addEventListener('scroll', onScroll, { passive: true });
 
 async function render() {
   // The Watch Together page draws itself (see together.js); tell it where we are.
-  window.Together.onRoute(route().path, S.profile?.name, S.settings);
+  window.Together.onRoute(route().path, S.profile, S.settings);
   if (!S.profile) return renderGate();
   if (!$('#page')) renderShell();
   const r = route();
@@ -774,8 +774,11 @@ async function play(titleId, fileId, fromStart) {
     const body = { profile: S.profile.id, title: titleId };
     if (fileId) body.file = fileId;
     if (fromStart) body.from_start = true;
-    const res = await api.post('/api/play', body);
-    toast(res.start > 0 ? `Resuming at ${fmtClock(res.start)} in VLC…` : 'Opening in VLC…');
+    // In a room, Play means play for both of you.
+    const together = window.Together.inRoom();
+    const res = await api.post(together ? '/api/together/play' : '/api/play', body);
+    if (together) toast('Playing for both of you in VLC…');
+    else toast(res.start > 0 ? `Resuming at ${fmtClock(res.start)} in VLC…` : 'Opening in VLC…');
     setTimeout(pollStatus, 1200);
   } catch (err) { toast(err.message, 'error'); }
 }

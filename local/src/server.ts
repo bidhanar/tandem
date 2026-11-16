@@ -10,7 +10,9 @@ import type { TitleItem } from './catalog.ts';
 import { applyChanges, expandHome, saveConfig, scanOptions, type AppConfig, type AppPaths } from './config.ts';
 import { computeUpNext } from './feed.ts';
 import type { Library } from './library.ts';
+import { WEB_DIR } from './paths.ts';
 import type { Playback } from './playback.ts';
+import type { RoomClient } from './together.ts';
 import { playlistTitle, View, type Filter } from './view.ts';
 import type { PlaylistItem } from './vlc.ts';
 import { MIN_RESUME_SECONDS, type WatchState } from './watchState.ts';
@@ -18,8 +20,6 @@ import { MIN_RESUME_SECONDS, type WatchState } from './watchState.ts';
 /** Episodes queued after the one picked, so VLC rolls on to the next. */
 const AUTOPLAY_QUEUE = 25;
 
-// This file runs from local/dist/src, so the page's files are three levels up.
-const WEB_DIR = path.resolve(import.meta.dirname, '..', '..', '..', 'web');
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -52,11 +52,14 @@ export type Services = {
   library: Library;
   watch: WatchState;
   playback: Playback;
+  room: RoomClient;
+  /** Called whenever the settings change. */
+  onConfig: (config: AppConfig) => void;
   quit: () => void;
 };
 
 export function createServer(services: Services): http.Server {
-  const { paths, library, watch, playback } = services;
+  const { paths, library, watch, playback, room } = services;
   let config = services.config;
 
   const routes: { method: string; pattern: RegExp; handler: Handler }[] = [];
@@ -88,6 +91,7 @@ export function createServer(services: Services): http.Server {
     scan: library.progress(),
     titles: library.catalog().titles.length,
     now_playing: playback.nowPlaying(),
+    together: room.status(),
   }));
 
   // ---- Profiles ----
@@ -133,7 +137,8 @@ export function createServer(services: Services): http.Server {
 
   // ---- Actions ----
 
-  route('POST', /^\/api\/play$/, async ({ body }) => {
+  /** Works out what a Play press means: which file of the title, and from where. */
+  const choose = (body: Record<string, unknown>) => {
     const profile = profileOf(text(body.profile));
     const catalog = library.catalog();
     const title = titleOf(text(body.title));
@@ -159,6 +164,12 @@ export function createServer(services: Services): http.Server {
     if (!file || !fs.existsSync(file.path)) {
       throw new ApiError(410, "That file isn't on disk anymore. Try rescanning in Settings.");
     }
+    return { profile, catalog, title, index, file, start };
+  };
+
+  route('POST', /^\/api\/play$/, async ({ body }) => {
+    const { profile, catalog, title, index, file, start } = choose(body);
+    const fileId = file.id;
 
     const playlist: PlaylistItem[] = [{ fileId, path: file.path, title: playlistTitle(catalog, title, index), start }];
     if (title.kind === 'show') {
@@ -175,6 +186,45 @@ export function createServer(services: Services): http.Server {
       throw new ApiError(500, (error as Error).message);
     }
     return { ok: true, start };
+  });
+
+  // ---- Watch Together (local files) ----
+
+  const failed = (error: unknown) => new ApiError(409, (error as Error).message);
+
+  // The page tells us which room it joined, so we can follow it with VLC.
+  route('POST', /^\/api\/together\/join$/, async ({ body }) => {
+    const details = {
+      server: text(body.server), code: text(body.code), clientId: text(body.client),
+      name: text(body.name) || 'Guest', profile: profileOf(text(body.profile)).id,
+    };
+    if (!details.server || !details.code || details.clientId.length < 8) throw new ApiError(400, 'bad request');
+    await room.join(details);
+    return { ok: true };
+  });
+
+  route('POST', /^\/api\/together\/leave$/, () => {
+    room.leave();
+    return { ok: true };
+  });
+
+  route('POST', /^\/api\/together\/play$/, async ({ body }) => {
+    const { profile, catalog, title, index, file, start } = choose(body);
+    await room.playForBoth(profile.id, file, playlistTitle(catalog, title, index), start).catch((e) => { throw failed(e); });
+    return { ok: true, start };
+  });
+
+  // Play another copy of what the room is playing, after the "different version" warning.
+  route('POST', /^\/api\/together\/use$/, async ({ body }) => {
+    const file = library.catalog().findFile(text(body.file));
+    if (!file) throw new ApiError(404, 'no such file');
+    await room.useFile(file).catch((e) => { throw failed(e); });
+    return { ok: true };
+  });
+
+  route('POST', /^\/api\/together\/reopen$/, () => {
+    room.reopen();
+    return { ok: true };
   });
 
   route('POST', /^\/api\/stop$/, () => {
@@ -229,6 +279,7 @@ export function createServer(services: Services): http.Server {
 
     config = after;
     saveConfig(config, paths.configFile);
+    services.onConfig(config);
 
     const rescanning = after.min_size_mb !== before.min_size_mb || after.roots.join('\n') !== before.roots.join('\n');
     if (rescanning) library.rescan(scanOptions(config));

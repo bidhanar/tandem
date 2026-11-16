@@ -675,3 +675,14 @@ body.together-open #page { display: none; }
 #together.docked .tg-stage { margin: 0; box-shadow: 0 12px 40px rgba(0, 0, 0, .6); border-radius: 10px; }
 #together.docked .tg-back { display: block; padding: 8px 12px; font-size: 13px; background: var(--surface-2); border-radius: 0 0 10px 10px; color: var(--text); }
 #together.docked .tg-player { border-radius: 10px 10px 0 0; }
+
+/* The room is playing a local file: VLC shows it, so the player gives way to a panel. */
+#together.has-local .tg-player { display: none; }
+.tg-local:empty { display: none; }
+.tg-local { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 26px; }
+.tg-local h2 { margin: 0 0 10px; font-size: 22px; }
+.tg-local p { margin: 0 0 14px; color: var(--muted); max-width: 720px; }
+.tg-local a { color: var(--accent-2); }
+.tg-local code { color: var(--text); }
+.tg-files { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.tg-files li { display: flex; align-items: center; justify-content: space-between; gap: 14px; background: var(--surface-2); border-radius: 6px; padding: 10px 12px; }

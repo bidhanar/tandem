@@ -40,13 +40,19 @@ export class Playback {
   }
 
   /** Starts VLC for a profile, closing any window already open. */
-  async play(profileId: string, playlist: PlaylistItem[], options: VlcOptions): Promise<void> {
+  async play(profileId: string, playlist: PlaylistItem[], options: VlcOptions): Promise<VlcSession> {
     this.stop();
     const vlc = await VlcSession.launch(options, playlist);
     const first = playlist[0]!;
     this.session = { vlc, profileId, currentFile: '', started: Date.now(), reachedStart: false };
     this.now = { profile: profileId, file_id: first.fileId, title: first.title, position: first.start, duration: 0, paused: false };
     this.timer = setInterval(() => void this.follow(), POLL_MS);
+    return vlc;
+  }
+
+  /** The VLC window open now, if any. */
+  current(): VlcSession | null {
+    return this.session?.vlc ?? null;
   }
 
   stop(): void {

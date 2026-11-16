@@ -11,6 +11,7 @@ import { defaultPaths, loadConfig, scanOptions } from './config.ts';
 import { Library } from './library.ts';
 import { Playback } from './playback.ts';
 import { createServer } from './server.ts';
+import { RoomClient } from './together.ts';
 import { WatchState } from './watchState.ts';
 
 function openBrowser(url: string): void {
@@ -37,10 +38,16 @@ const library = new Library(paths.dataDir);
 const playback = new Playback(watch);
 
 const quit = () => {
+  room.leave();
   watch.flush();
   process.exit(0);
 };
-const server = createServer({ paths, config, library, watch, playback, quit });
+let currentConfig = config;
+const room = new RoomClient(library, playback, () => currentConfig);
+const server = createServer({
+  paths, config, library, watch, playback, room, quit,
+  onConfig: (changed) => { currentConfig = changed; },
+});
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {
