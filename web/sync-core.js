@@ -72,6 +72,16 @@ export class SyncController {
     this.nudging = false; // playing slightly fast or slow to catch up
   }
 
+  /**
+   * Whether the room is moving, as far as commanding the player goes. A
+   * start time a few milliseconds ahead of our clock (clocks never agree
+   * exactly) counts as now; without that, every remote "play" would first
+   * pause the player.
+   */
+  rolling(state, now) {
+    return isRolling(state, now + this.config.startSlackMs);
+  }
+
   /** How far the player is ahead (+) or behind (-) the room, or null if not comparable. */
   drift() {
     const { state, snapshot } = this;
@@ -125,13 +135,13 @@ export class SyncController {
    * next reading already agrees.
    */
   detectUserAction(state, snapshot, previous, now) {
-    const rolling = isRolling(state, now);
+    const rolling = this.rolling(state, now);
 
     if (snapshot.status === 'paused' && rolling && this.told !== 'pause') {
-      return this.request(state, { action: 'pause', position: snapshot.position }, { isPlaying: false });
+      return this.request(state, { action: 'pause', position: snapshot.position }, { isPlaying: false }, now);
     }
     if (snapshot.status === 'playing' && !state.isPlaying && this.told !== 'play') {
-      return this.request(state, { action: 'play', position: snapshot.position }, { isPlaying: true });
+      return this.request(state, { action: 'play', position: snapshot.position }, { isPlaying: true }, now);
     }
 
     // A seek shows as the position moving more than playback explains.
@@ -142,18 +152,18 @@ export class SyncController {
     const most = (previous.status === 'playing' || snapshot.status === 'playing' ? elapsed * snapshot.rate : 0)
       + this.config.seekJump;
     if (moved < -this.config.seekJump || moved > most) {
-      this.request(state, { action: 'seek', position: snapshot.position }, {});
+      this.request(state, { action: 'seek', position: snapshot.position }, {}, now);
     }
   }
 
-  request(state, request, change) {
+  request(state, request, change, now) {
     this.send('state:request', request);
-    this.state = { ...state, ...change, position: request.position, updatedAt: this.now() };
+    this.state = { ...state, ...change, position: request.position, updatedAt: now };
   }
 
   /** Tell the room when this player has been stuck buffering for a while. */
   detectStall(state, snapshot, now) {
-    if (snapshot.status !== 'buffering' || !isRolling(state, now)) {
+    if (snapshot.status !== 'buffering' || !this.rolling(state, now)) {
       this.bufferingSince = null;
       this.stallSent = false;
       return;
@@ -206,7 +216,7 @@ export class SyncController {
     const target = expectedPosition(state, now);
     const off = snapshot.position - target;
 
-    if (!isRolling(state, now)) {
+    if (!this.rolling(state, now)) {
       let acted = false;
       if (snapshot.status !== 'paused') {
         player.pause();
@@ -242,7 +252,7 @@ export class SyncController {
     const { state, snapshot, config } = this;
     const now = this.now();
     if (!state || !snapshot || state.mediaId === null || snapshot.mediaId !== state.mediaId) return;
-    if (!isRolling(state, now) || snapshot.status !== 'playing' || now < this.guardUntil) return;
+    if (!this.rolling(state, now) || snapshot.status !== 'playing' || now < this.guardUntil) return;
     if (state.waitingFor.includes(this.clientId)) return;
 
     // The snapshot is a little old; move it forward to now before comparing.

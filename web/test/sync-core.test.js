@@ -211,6 +211,16 @@ test('an older state than the one already applied is ignored', () => {
   assert.ok(world.player.position > 60);
 });
 
+test('a remote play stamped slightly ahead of our clock does not pause the player first', () => {
+  const world = playingWorld();
+  world.controller.onRemoteState(roomState({ isPlaying: false, position: 5, updatedAt: world.time }));
+  world.run(3000);
+  world.player.commands.length = 0;
+  world.controller.onRemoteState(roomState({ isPlaying: true, position: 5, updatedAt: world.time + 40 }));
+  world.run(2000);
+  assert.deepEqual(world.player.commands, [['play']]);
+});
+
 // ---- Buffering ----
 
 test('a short stall is not reported; a long one is reported once', () => {

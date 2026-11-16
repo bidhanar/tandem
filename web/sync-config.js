@@ -10,6 +10,8 @@ export const SYNC_CONFIG = {
   guardMs: 1500,
   /** Don't repeat commands to the player more often than this. */
   commandCooldownMs: 1000,
+  /** A start time this close ahead of our clock counts as "now". */
+  startSlackMs: 150,
   /** When a new room state arrives, seek if the player is further off than this. */
   applySeekThreshold: 0.5,
   /** While paused, how far from the room's position the player may sit. */

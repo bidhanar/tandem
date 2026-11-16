@@ -3,7 +3,7 @@
 // pretend player. Checks that they stay together and that one action by one
 // person changes the room exactly once.
 //
-//   npm run simulate        (takes about 25 seconds)
+//   npm run simulate        (takes about 30 seconds)
 
 import { io } from 'socket.io-client';
 
@@ -57,10 +57,16 @@ async function person(name, url, loadMs) {
   const offset = bestOffset(samples);
 
   const me = { name, socket, ask, player: new PretendPlayer(loadMs), changes: 0, id: `sim-${name}-12345678` };
+  // MENDU_TRACE=1 prints every command to the players and every message sent.
+  const trace = (...parts) => { if (process.env.MENDU_TRACE) console.log(`  [${(performance.now() / 1000).toFixed(2)}] ${name}:`, ...parts); };
+  for (const command of ['load', 'play', 'pause', 'seek', 'setRate']) {
+    const original = me.player[command].bind(me.player);
+    me.player[command] = (...args) => { trace('player', command, ...args.map((a) => (typeof a === 'number' ? a.toFixed(2) : a.mediaId))); return original(...args); };
+  }
   me.controller = new SyncController({
     player: me.player, clientId: me.id, mode: 'youtube',
     now: () => performance.now() + offset,
-    send: (event, payload) => socket.emit(event, payload),
+    send: (event, payload) => { trace('sends', event, JSON.stringify(payload ?? '')); socket.emit(event, payload); },
   });
   socket.on('state:changed', ({ state }) => {
     me.changes += 1;
@@ -128,8 +134,8 @@ n = await changesDuring(() => ben.player.seek(600));
 check('Ben seeks to 10:00: the room changes exactly once', n === 1, `${n} change(s)`);
 check('...and Ana follows', ana.player.read().position > 600 && apart() < 0.5, `${apart().toFixed(2)} s apart`);
 
-ben.player.status = 'buffering'; // Ben's video stalls
-await sleep(2500);
+ben.player.status = 'buffering'; // Ben's video stalls, for long enough to earn a countdown
+await sleep(4000);
 check("Ben's video stalls: Ana is paused to wait", ana.player.read().status === 'paused');
 const held = ana.player.read().position;
 ben.player.status = 'playing';
