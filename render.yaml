@@ -15,3 +15,7 @@ services:
       paths:
         - server/**
     healthCheckPath: /
+    envVars:
+      # Synaxis's Watch Together brings groups; Tandem's own default is 2.
+      - key: MAX_MEMBERS
+        value: "8"
