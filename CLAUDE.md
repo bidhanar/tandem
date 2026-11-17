@@ -103,8 +103,12 @@ properties).
    Tested headless in Firefox and Brave, and Firefox with Brave in one room.
    Not yet tried by real people, or with a non-Premium account (ads count
    as buffering). Firefox needs it signed (AMO, unlisted) to stay installed.
-9. Next: deploy the sync server (needs the owner to push and make a Render
-   account), test the Windows package and ads/Premium on real machines,
+9. Done: sync server deployed on Render's free plan at
+   https://tandem-sync-a3pn.onrender.com (sleeps after 15 idle minutes,
+   up to ~1 minute to wake; the owner is fine with that). Extension zips
+   for friends: `TANDEM_SYNC_SERVER=https://tandem-sync-a3pn.onrender.com
+   scripts/package.sh`. The owner reports it working.
+10. Next: test the Windows package and ads/Premium on real machines,
    chat and reactions UI (reactions beside the YouTube player, never over
    it), partner connection quality, GitHub Actions for tests and releases,
    optional YouTube search (needs a YouTube Data API key).
@@ -122,8 +126,9 @@ properties).
   compensation for YouTube, two-step rate correction for local files,
   expected-state comparison for feedback-loop prevention, persistent client
   id, empty rooms kept ~10 minutes, join rate limit, monotonic clock.
-- Sync server on a free host (Render free tier is the candidate; confirm
-  terms when deploying).
+- Sync server on Render's free plan (750 hours a month covers one service
+  running all the time; rooms live in memory and are rebuilt by `restore`
+  after Render restarts it).
 - Licence: GPL-3.0-or-later (Synaxis code is GPL-3.0).
 - Instead of screen sharing YouTube: the extension, so each person plays
   youtube.com on their own account and only control messages travel.
