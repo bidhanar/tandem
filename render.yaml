@@ -7,7 +7,11 @@ services:
     name: tandem-sync
     runtime: docker
     plan: free
-    rootDir: server
+    # Paths are from the top of the repository.
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
+    # Redeploy only when the server itself changes.
+    buildFilter:
+      paths:
+        - server/**
     healthCheckPath: /
