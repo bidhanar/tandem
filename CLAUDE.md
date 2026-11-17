@@ -19,6 +19,10 @@ web/      The page (plain JS/CSS, no framework, no build). app.js/app.css are
           sync-config.js holds every threshold.
 server/   Sync server (Node + TypeScript + Socket.IO). room.ts is the pure
           state rules, app.ts the socket wiring, config.ts the timings.
+extension/  Browser extension (Manifest V3, Chrome/Edge/Brave and Firefox
+          128+): watch on youtube.com itself, in step. Plain JS in src/;
+          build.mjs copies src/ plus web/sync-core.js, web/sync-config.js
+          and the Socket.IO client into dist/, the folder a browser loads.
 scripts/package.sh   builds release/ zips with a bundled Node.js; launchers
                      and the read-me live in packaging/
 render.yaml          hosts the sync server on Render's free plan
@@ -35,6 +39,8 @@ cd web    && npm test                  # sync logic (plain node --test)
 cd server && npm install && npm test   # room state rules
 cd server && npm run simulate          # two simulated people end to end, ~30 s
 cd server && npm start                 # sync server on port 8686
+cd extension && npm install && npm run build   # extension in extension/dist
+cd extension && npm test               # youtube-page.js (which pages are followed)
 ```
 
 Ubuntu's Node package can't run TypeScript directly, so everything is
@@ -57,6 +63,25 @@ properties).
 - Data: `~/.config/tandem/config.json` and `~/.local/share/tandem/` on Linux,
   `%APPDATA%\Tandem` and `%LOCALAPPDATA%\Tandem` on Windows.
 
+## Extension (extension/src)
+
+- `tandem.js` (content script, loaded by `content.js` because content
+  scripts can't be modules): the connection, room, sync (SyncController in
+  speed-correction mode, since youtube.com's player takes any speed), page
+  following and the corner badge. The room belongs to the tab
+  (sessionStorage), so a reload keeps it; settings and the client id are in
+  `chrome.storage.local`.
+- `bridge.js` runs in the page's own world (`"world": "MAIN"`) to reach
+  `#movie_player` and YouTube's in-page navigation (a `yt-navigate` event
+  on `ytd-app`). The content script talks to it through an attribute on
+  `<html>` plus a synchronous event.
+- `youtube-page.js`: pure, tested. Which pages are followed (an allow-list),
+  and `/@handle` to `/channel/<id>` (YouTube reloads the tab for `/@handle`).
+- `popup.*`: create/join/leave and settings; it messages the active tab.
+- Browsing: leaving the room's video pauses it for both; while browsing the
+  controller isn't fed and room states are held (`T.held`) unless they bring
+  a new video. `page:send` / `page` relay pages (docs/protocol.md).
+
 ## Plan from here
 
 1. Done: library + VLC playback on localhost.
@@ -73,7 +98,12 @@ properties).
 7. Done: rooms are rebuilt after a server restart (clients send `restore`
    on rejoin); closing the tab shows you offline (page check-in, see
    docs/protocol.md).
-8. Next: deploy the sync server (needs the owner to push and make a Render
+8. Done: browser extension for watching on youtube.com itself (both on
+   their own accounts; search, channels and video picks are followed).
+   Tested headless in Firefox and Brave, and Firefox with Brave in one room.
+   Not yet tried by real people, or with a non-Premium account (ads count
+   as buffering). Firefox needs it signed (AMO, unlisted) to stay installed.
+9. Next: deploy the sync server (needs the owner to push and make a Render
    account), test the Windows package and ads/Premium on real machines,
    chat and reactions UI (reactions beside the YouTube player, never over
    it), partner connection quality, GitHub Actions for tests and releases,
@@ -95,6 +125,13 @@ properties).
 - Sync server on a free host (Render free tier is the candidate; confirm
   terms when deploying).
 - Licence: GPL-3.0-or-later (Synaxis code is GPL-3.0).
+- Instead of screen sharing YouTube: the extension, so each person plays
+  youtube.com on their own account and only control messages travel.
+  The extension's socket lives in the content script (an MV3 service
+  worker would be stopped when idle); so it is subject to the page's rules:
+  an `http://` server other than localhost is mixed content, and a
+  localhost one needs the browser's local-network permission (Brave Shields
+  block it). A deployed `https://` server avoids all of that.
 
 ## Conventions
 
@@ -119,6 +156,17 @@ properties).
   plus `POST /api/together/join`. VLC's port and password are in its
   command line (`pgrep -af http-port`), for pressing its buttons from outside.
 - `window.Together.inspect()` in the browser console shows what the sync
-  logic sees.
+  logic sees. For the extension, send `{do: 'inspect'}` to the tab from an
+  extension page (`chrome.tabs.sendMessage`).
+- Testing the extension headless: Firefox needs `MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1`
+  to script extension pages; install with BiDi `webExtension.install`
+  `{type: 'path', path: 'extension/dist'}`, and fix the moz-extension UUID
+  with the `extensions.webextensions.uuids` pref. Set `network.lna.enabled`
+  false so youtube.com may reach localhost. Brave: `--headless=new
+  --load-extension=... --remote-debugging-port=...` (CDP), Shields off for
+  youtube.com via the profile's Preferences (`braveShields` exception,
+  setting 2). Drive the popup's messages from the popup page opened in a
+  background tab. Headless YouTube can't seek far into a 4K video (it
+  stalls at 2:00 with or without Tandem); seek less far.
 - Never match your own shell with `pkill -f`: write the pattern with a
   bracket, e.g. `pkill -f "dist/src/[m]ain.js"`.

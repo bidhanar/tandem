@@ -58,6 +58,38 @@ either side apply to both.
   person only has a different copy of the same length, they can play that
   one after a warning that sync may be off.
 
+### On youtube.com itself: the browser extension
+
+Instead of the player on Tandem's page, you can both use the real
+youtube.com, each signed in to your own account (Premium means no ads for
+either of you). Either of you searches, opens a channel or clicks a video,
+and the other's tab goes to the same page; play, pause and seek stay in
+step. Each of you still sees your own account's recommendations. Only
+YouTube; your own video files still need Tandem's program.
+
+Install it in Chrome, Edge or Brave: build it (below) or unzip
+`tandem-extension-<version>.zip`, open `chrome://extensions`, turn on
+Developer mode, press "Load unpacked" and pick the folder. In Firefox (128
+or newer): `about:debugging`, This Firefox, "Load Temporary Add-on", and pick
+`manifest.json` in that folder. Firefox forgets a temporary add-on when it
+closes; to keep it, the zip has to be signed once through a free Mozilla
+add-ons account (it can stay unlisted).
+
+Then open youtube.com, click Tandem's icon in the toolbar, type your name and
+press "Create a room" (if a video is open, it plays for both of you), or type
+your partner's code and press Join. Set the sync server address under
+Settings in that popup. A small badge in the corner of the page shows the
+room code and whether you're in step; click it to make it smaller.
+
+```sh
+cd extension && npm install && npm run build   # the extension is then in extension/dist
+```
+
+With a sync server on your own computer (`http://localhost:8686`), browsers
+ask before letting youtube.com reach it: allow it when asked. Brave blocks it
+outright unless Shields are down for youtube.com. A sync server on an
+`https://` address (see below) has none of this.
+
 You both need to reach the same **sync server**, a tiny program that passes
 those messages along. Set its address in Settings on both computers.
 
@@ -82,12 +114,14 @@ the server sleeps when unused, so the first connection can take a minute.
 TANDEM_SYNC_SERVER=https://your-server.example scripts/package.sh
 ```
 
-builds `release/tandem-<version>-windows-x64.zip` and
-`release/tandem-<version>-linux-x64.tar.gz`. Each holds Tandem and its own
+builds `release/tandem-<version>-windows-x64.zip`,
+`release/tandem-<version>-linux-x64.tar.gz` and the browser extension,
+`release/tandem-extension-<version>.zip`. Each holds Tandem and its own
 copy of Node.js, so the other person only needs VLC: they unzip it and
 double-click `Tandem.bat` (Windows) or run `./tandem` (Linux). `READ ME.txt`
 inside tells them the rest. `TANDEM_SYNC_SERVER` is optional; it presets the
-sync server address so they don't have to type it.
+sync server address (in the program and the extension) so they don't have
+to type it.
 
 ## Develop
 
@@ -95,6 +129,7 @@ sync server address so they don't have to type it.
 cd local  && npm test                               # library and VLC
 cd web    && npm test                               # sync logic
 cd server && npm test                               # room rules
+cd extension && npm test                            # which youtube.com pages are followed
 cd server && npm run simulate                       # two simulated people
 cd local  && npm start -- --no-browser --port 8599  # run without opening a tab
 ```

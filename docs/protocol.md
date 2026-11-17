@@ -6,7 +6,9 @@ it: every device plays its own copy.
 
 Where the code lives: the rules are `server/src/room.ts`, the wiring is
 `server/src/app.ts`, and the client side is `web/sync-core.js` (logic) and
-`web/together.js` (page).
+`web/together.js` (page). The browser extension (`extension/src/tandem.js`)
+is another client of the same protocol, so a person on Tandem's page and a
+person on youtube.com can share a room.
 
 ## Clock sync
 
@@ -70,6 +72,7 @@ Questions with an answer use Socket.IO acknowledgements.
 | `queue:clear` | none | none |
 | `queue:play` | `{id}`: play this entry now | none |
 | `media:ended` | `{mediaId}` | none |
+| `page:send` | `{path}`: this tab moved to another youtube.com page | none |
 | `chat:send` | `{text}` | none |
 | `reaction:send` | `{emoji}` | none |
 
@@ -85,6 +88,7 @@ client makes once and keeps, so a reconnect is recognised as the same person.
 | `member:joined` | `{members}` |
 | `member:left` | `{members}` |
 | `queue:changed` | `{queue}`, entries `{id, mediaId, addedBy}` |
+| `page` | `{from, path}` (to everyone in the room but the sender) |
 | `chat:message` | `{from, name, text, at}` |
 | `reaction` | `{from, emoji}` |
 
@@ -131,6 +135,16 @@ client makes once and keeps, so a reconnect is recognised as the same person.
   position, queue}`, which is what the client last knew, with `position` as
   of now. If no room has that code and the code is one the server could have
   made, the room is rebuilt from it. Clients always send it when rejoining.
+- **Pages (browser extension).** When someone moves to another page on
+  youtube.com (a search, a channel, the home page), their extension sends
+  `page:send` with the path, and the server passes it on. The server only
+  checks that it is a path; the receiving extension opens it only if it is a
+  page for finding something to watch (`extension/src/youtube-page.js`), so a
+  partner can't send you to account pages or sign-out. `/@handle` channel
+  paths are sent as `/channel/<id>`, which YouTube opens without reloading
+  the tab. Videos themselves go through the room state as usual. Leaving a
+  video's page pauses it for both (YouTube stops a video when you leave its
+  page); picking a video loads it for both.
 - **Rooms** hold 2 people by default (`MAX_MEMBERS`), have a 6-character
   code from an alphabet without look-alike characters, and are forgotten
   after 10 minutes with nobody connected.

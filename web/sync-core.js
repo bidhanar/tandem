@@ -63,9 +63,10 @@ export class SyncController {
    * @param options.mode      'youtube' (correct drift by seeking) or 'local' (by speed)
    * @param options.now       () => server time in ms
    * @param options.send      (event, payload) => void, to the sync server
-   * @param options.setTimer  (fn, ms) => void; defaults to setTimeout
+   * @param options.setTimer  (fn, ms) => void; defaults to setTimeout. (Wrapped: Chrome refuses
+   *                          to run setTimeout called as this.setTimer, with `this` not the window.)
    */
-  constructor({ player, clientId, mode, now, send, config = SYNC_CONFIG, setTimer = setTimeout }) {
+  constructor({ player, clientId, mode, now, send, config = SYNC_CONFIG, setTimer = (fn, ms) => setTimeout(fn, ms) }) {
     this.player = player;
     this.clientId = clientId;
     this.mode = mode;
@@ -151,7 +152,14 @@ export class SyncController {
       return this.reconcile(false);
     }
 
-    if (now >= this.guardUntil) this.detectUserAction(state, snapshot, previous, now);
+    if (now >= this.guardUntil) {
+      this.detectUserAction(state, snapshot, previous, now);
+      // A player already doing what the room wants is in that state, whoever
+      // put it there (the person may press play just as a countdown ends).
+      // Otherwise their next pause would look like one of ours.
+      if (snapshot.status === 'playing' && this.rolling(this.state, now)) this.told = 'play';
+      if (snapshot.status === 'paused' && !this.state.isPlaying) this.told = 'pause';
+    }
     this.detectStall(this.state, snapshot, now);
     this.reconcile(false);
   }
@@ -182,6 +190,41 @@ export class SyncController {
     if (moved < -this.config.seekJump || moved > most) {
       this.request(state, { action: 'seek', position: snapshot.position }, {}, now);
     }
+  }
+
+  /**
+   * The person here switched to another video (clicked one, or YouTube moved
+   * on by itself): the room follows. The room's state is updated here at
+   * once, as the server will, so the player isn't sent back to the old video
+   * while the answer is on its way.
+   */
+  requestLoad(mediaType, mediaId, position = 0) {
+    const now = this.now();
+    this.send('state:request', { action: 'load', mediaType, mediaId, position });
+    this.state = {
+      ...(this.state ?? { version: 0, updatedBy: this.clientId, mediaTitle: null }),
+      mediaType, mediaId, mediaTitle: null, isPlaying: true, position, playbackRate: 1,
+      updatedAt: now, waitingFor: [this.clientId],
+    };
+    this.readySent = false;
+    this.told = 'play';
+    this.lastSteady = null;
+    if (this.nudging) this.endNudge();
+    this.commanded(now);
+  }
+
+  /**
+   * The player started over by itself, without us asking: the page around it
+   * changed (YouTube's site reloads its player when you come back to a
+   * video). It starts playing on its own, which is not the person pressing play.
+   */
+  playerRestarted() {
+    this.snapshot = null;
+    this.lastSteady = null;
+    this.loadingId = null;
+    this.told = 'play';
+    if (this.nudging) this.endNudge();
+    this.commanded(this.now());
   }
 
   request(state, request, change, now) {
@@ -264,7 +307,9 @@ export class SyncController {
         this.told = 'pause';
         acted = true;
       }
-      if (Math.abs(off) > config.pausedTolerance) {
+      // Nor is one that is buffering moved: its position jumps about, and
+      // seeking it would swallow that press of play.
+      if (steady(snapshot.status) && Math.abs(off) > config.pausedTolerance) {
         this.seekPlayer(target);
         acted = true;
       }

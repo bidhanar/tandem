@@ -8,9 +8,10 @@
 # Produces, in release/:
 #   tandem-<version>-windows-x64.zip   unzip, then double-click Tandem.bat
 #   tandem-<version>-linux-x64.tar.gz  extract, then run ./tandem
+#   tandem-extension-<version>.zip     the browser extension (see README.md)
 #
-# TANDEM_SYNC_SERVER sets the sync server address the package starts with, so
-# the other person doesn't have to type it into Settings.
+# TANDEM_SYNC_SERVER sets the sync server address the packages (and the
+# extension) start with, so the other person doesn't have to type it in.
 #
 # Needs: node, npm, curl, zip, tar, xz, sha256sum. Works on Linux.
 
@@ -72,6 +73,12 @@ tar -xJf "$CACHE/node-$NODE_VERSION-linux-x64.tar.xz" -C "$LIN/runtime" --strip-
 cp "$ROOT/packaging/tandem" "$ROOT/packaging/READ ME.txt" "$LIN/"
 chmod +x "$LIN/tandem"
 (cd "$OUT" && tar -czf "tandem-$VERSION-linux-x64.tar.gz" Tandem && rm -rf Tandem)
+
+echo "== Browser extension"
+EXT_VERSION=$(node -p "require('$ROOT/extension/package.json').version")
+(cd "$ROOT/extension" && npm ci --no-audit --no-fund >/dev/null && npm test >/dev/null && npm run build >/dev/null)
+rm -f "$OUT/tandem-extension-$EXT_VERSION.zip"
+(cd "$ROOT/extension/dist" && zip -qr "$OUT/tandem-extension-$EXT_VERSION.zip" .)
 
 rm -rf "$STAGE"
 echo "== Done"

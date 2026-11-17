@@ -240,6 +240,17 @@ export function createSyncServer() {
       io.to(found.room.code).emit('chat:message', { from: found.seat.clientId, name, text: message, at: Date.now() });
     });
 
+    // The browser extension: someone moved to another page on youtube.com
+    // (a search, a channel), and their partner's tab follows. Only a path is
+    // passed on; the extension decides which pages it is willing to open.
+    socket.on('page:send', (payload: any) => {
+      const found = roomOf(socket);
+      const path = text(payload?.path, config.maxPagePathLength);
+      if (found && path.startsWith('/') && !path.startsWith('//')) {
+        socket.to(found.room.code).emit('page', { from: found.seat.clientId, path });
+      }
+    });
+
     socket.on('reaction:send', (payload: any) => {
       const found = roomOf(socket);
       const emoji = text(payload?.emoji, 16);

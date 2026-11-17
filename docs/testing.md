@@ -104,12 +104,39 @@ You both need the same video file somewhere in your library folders.
    "Back to the room".
 8. Leave room: the other person is told.
 
+## Browser extension (youtube.com)
+
+Build it (`cd extension && npm install && npm run build`) and load
+`extension/dist` in two browsers or two browser profiles (see README.md).
+With the sync server on `localhost`, allow youtube.com to reach it when the
+browser asks (in Brave, turn Shields down for youtube.com).
+
+1. Person A opens a video on youtube.com, clicks Tandem's icon, types a name
+   and presses "Create a room". The popup shows a code; a badge with the code
+   appears in the corner of the page.
+2. Person B, on any youtube.com page, joins with the code. B's tab moves to
+   A's video, without reloading, and both play together. The badges say
+   "in sync".
+3. Pause, play and seek on either side: the other follows.
+4. A searches for something: B's tab shows the same search, and the video
+   is paused for both. A clicks a result: it plays for both.
+5. B clicks the channel name under a video: A's tab opens that channel too.
+   B clicks one of its videos: it plays for both.
+6. Reload B's tab, on a video and on a search page: B stays in the room and
+   on that page.
+7. A presses Leave room in the popup: B's badge says the partner left.
+8. A on Tandem's page and B with the extension, in the same room: a YouTube
+   link pasted on Tandem's page plays on youtube.com for B, and B's pause
+   pauses A's player.
+9. A popup opened on a tab that isn't YouTube offers to open YouTube.
+
 ### Automated checks
 
 ```sh
 cd server && npm test          # room state rules
 cd server && npm run simulate  # two simulated people, about 30 seconds
 cd web && npm test             # sync logic
+cd extension && npm test       # which youtube.com pages are followed
 ```
 
 Report for each step: worked / didn't, and what you saw.

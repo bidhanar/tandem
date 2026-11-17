@@ -26,5 +26,6 @@ export const config = {
   joinAttemptsPerMinute: number('JOIN_ATTEMPTS_PER_MINUTE', 20),
 
   maxChatLength: 500,
+  maxPagePathLength: 2000,
   maxNameLength: 24,
 };

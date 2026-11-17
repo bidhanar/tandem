@@ -1,0 +1,15 @@
+{
+  "name": "tandem-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tandem's browser extension: watch on youtube.com itself, in step with your partner.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "socket.io-client": "4.8.4"
+  }
+}

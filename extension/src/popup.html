@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tandem</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/32.png" alt="" width="24" height="24">
+    <h1>Tandem</h1>
+  </header>
+
+  <!-- This tab isn't a YouTube page Tandem is running in. -->
+  <section id="elsewhere" hidden>
+    <p>Watch together from a YouTube tab.</p>
+    <button class="btn primary" id="open-youtube">Open YouTube</button>
+    <p class="hint">If YouTube is already open in this tab, reload it.</p>
+  </section>
+
+  <!-- On YouTube, not in a room. -->
+  <section id="lobby" hidden>
+    <label class="field"><span>Your name</span>
+      <input id="name" maxlength="24" placeholder="So your partner knows it's you" autocomplete="off"></label>
+    <button class="btn primary" id="create">Create a room</button>
+    <p class="hint">If a video is open, it plays for both of you.</p>
+    <form id="join-form" class="row">
+      <input id="code" maxlength="8" placeholder="Partner's code" autocomplete="off" required>
+      <button class="btn" type="submit">Join</button>
+    </form>
+  </section>
+
+  <!-- In a room. -->
+  <section id="room" hidden>
+    <div class="codebox">
+      <span class="label">Room code</span>
+      <b id="room-code"></b>
+      <button class="btn small" id="copy">Copy</button>
+    </div>
+    <p id="partner"></p>
+    <p id="line" class="hint"></p>
+    <button class="btn" id="leave">Leave room</button>
+  </section>
+
+  <p id="message" class="message" role="alert"></p>
+
+  <details id="settings" hidden>
+    <summary>Settings</summary>
+    <label class="field"><span>Sync server address</span>
+      <input id="server" placeholder="https://…" autocomplete="off"></label>
+    <p class="hint">The same address as in Tandem's settings, on both computers.</p>
+  </details>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

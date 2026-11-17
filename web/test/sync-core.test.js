@@ -359,3 +359,72 @@ test('local: small drift ignored; medium drift fixed by speed; large by seeking'
   assert.equal(far.player.count('seek'), 1);
   assert.deepEqual(far.sent, []);
 });
+
+// ---- Following what the person here does on the page (browser extension) ----
+
+test('switching video here asks the room to load it, without going back to the old one', () => {
+  const world = playingWorld();
+  world.player.mediaId = 'other'; // the person clicked another video; it starts by itself
+  world.player.position = 0;
+  world.controller.requestLoad('youtube', 'other', 0);
+  world.run(2000);
+  assert.deepEqual(world.requests(), [{ action: 'load', mediaType: 'youtube', mediaId: 'other', position: 0 }]);
+  assert.equal(world.player.count('load'), 0); // not sent back to 'vid'
+  assert.equal(world.events('buffer:end'), 1); // ready, since it plays
+
+  // The server's answer (the partner still loading) holds us at the start, and nothing more is sent.
+  world.controller.onRemoteState(roomState({ mediaId: 'other', updatedAt: world.time, updatedBy: ME, waitingFor: [PARTNER] }));
+  world.run(3000);
+  assert.equal(world.player.status, 'paused');
+  assert.equal(world.requests().length, 1);
+  assert.equal(world.events('buffer:end'), 1);
+});
+
+test('a player that restarts by itself and starts playing is not taken as the person pressing play', () => {
+  const world = playingWorld();
+  world.controller.onRemoteState(roomState({ isPlaying: false, position: 40, updatedAt: world.time }));
+  world.run(3000);
+  world.sent.length = 0;
+
+  // The page was left and come back to: the player starts again from the top, playing.
+  world.controller.playerRestarted();
+  Object.assign(world.player, { status: 'playing', position: 0 });
+  world.run(3000);
+  assert.deepEqual(world.requests(), []);
+  assert.equal(world.player.status, 'paused');
+  assert.equal(world.player.position, 40);
+});
+
+test('pressing play on a player paused slightly off the room is not undone while it buffers', () => {
+  const world = playingWorld();
+  world.controller.onRemoteState(roomState({ isPlaying: false, position: 5, updatedAt: world.time }));
+  world.run(3000);
+  world.player.position = 5.25; // within the paused tolerance: left alone
+  world.run(2000);
+  world.sent.length = 0;
+  world.player.commands.length = 0;
+
+  // The person presses play. The player buffers for a moment, reading a little further on.
+  Object.assign(world.player, { status: 'buffering', position: 5.45, loading: 0.5 });
+  world.run(3000);
+  assert.deepEqual(world.requests().map((r) => r.action), ['play']);
+  assert.equal(world.player.count('seek'), 0);
+  assert.equal(world.player.count('pause'), 0);
+});
+
+test('a pause after pressing play just as a countdown ends is still sent', () => {
+  const world = playingWorld();
+  // The partner stalled; we were held, then a countdown.
+  world.controller.onRemoteState(roomState({ position: 4, updatedAt: world.time, waitingFor: [PARTNER] }));
+  world.run(2000);
+  world.controller.onRemoteState(roomState({ position: 4, updatedAt: world.time + 3000 }));
+  world.run(2750);
+  world.player.status = 'playing'; // the person here pressed play a moment before it started by itself
+  world.run(3000);
+  world.sent.length = 0;
+
+  world.player.status = 'paused'; // and now pauses
+  world.run(3000);
+  assert.deepEqual(world.requests().map((r) => r.action), ['pause']);
+  assert.equal(world.player.status, 'paused');
+});
