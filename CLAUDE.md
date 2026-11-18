@@ -25,6 +25,9 @@ extension/  Browser extension (Manifest V3, Chrome/Edge/Brave and Firefox
           and the Socket.IO client into dist/, the folder a browser loads.
 scripts/package.sh   builds release/ zips with a bundled Node.js; launchers
                      and the read-me live in packaging/
+.github/workflows/   test.yml (every push), release.yml (a v* tag builds the
+                     packages onto a GitHub release; signs the Firefox
+                     extension when the AMO secrets are set)
 render.yaml          hosts the sync server on Render's free plan
 docs/     spec.md, protocol.md, testing.md
 ```
@@ -77,8 +80,15 @@ properties).
   `<html>` plus a synchronous event.
 - `youtube-page.js`: pure, tested. Which pages are followed (an allow-list),
   and `/@handle` to `/channel/<id>` (YouTube reloads the tab for `/@handle`).
-- `popup.*`: create/join/leave, "I'm away", a small chat (the last 50
-  messages, sent through the tab) and settings; it messages the active tab.
+- `popup.*`: create/join/leave, invite link, "I'm away", Resume, a small
+  chat (the last 50 messages, sent through the tab), the queue, the room's
+  pause-on-away option, chat sound, and settings; it messages the active tab.
+- `background.js`: only the right-click "Add to Tandem queue" menu on video
+  links; it passes the click to the tab. Named for both Chrome (service
+  worker) and Firefox (scripts), hence Chrome 121+.
+- Invite links are `youtube.com/…#tandem=CODE`; `bridge.js` takes the hash
+  out of the address at document_start and leaves it on `<html>` for
+  tandem.js.
 - The badge (bottom right, in a shadow root) has a 💬 panel: who's here or
   away, chat, reactions (they rise from the badge, beside the player, never
   over it) and the away button. Its text box stops key events so YouTube's
@@ -112,15 +122,19 @@ properties).
    up to ~1 minute to wake; the owner is fine with that). Extension zips
    for friends: `TANDEM_SYNC_SERVER=https://tandem-sync-a3pn.onrender.com
    scripts/package.sh`. The owner reports it working.
-10. In progress: chat, reactions and an "I'm away" (AFK) status in the
-   extension (the badge's 💬 panel; away also in the popup, and shown on
-   Tandem's page). The room also records who chose the current video and
-   how (picked, YouTube autoplay on someone's side, or the queue), shown in
-   the badge, popup and Tandem's page. Server and rendering checked; not
-   yet tried on youtube.com by real people.
-11. Next: chat and reactions on Tandem's own page, partner connection
-   quality, GitHub Actions for tests and releases, optional YouTube search
-   (needs a YouTube Data API key).
+10. Done, waiting for the owner to try on youtube.com: chat, reactions,
+   "I'm away" (pauses the room for everyone unless the room's option is
+   off; offline 5 s or leaving does too, then Resume), who chose the video
+   (picked / autoplay on someone's side / queue), invite links, the queue
+   from the right-click menu, unread count in the tab title, typing,
+   connection quality. Server checked with scripted clients; Tandem's
+   page checked in headless Firefox; the extension only rendered (popup,
+   badge), not yet run on youtube.com with these changes.
+11. Done: GitHub Actions (tests on push; release on a v* tag). Not yet run
+   on GitHub (nothing is pushed).
+12. Next: one-click installs (Chrome Web Store unlisted, $5; Firefox AMO
+   unlisted signing, wired into release.yml once AMO keys exist), optional
+   YouTube search (needs a YouTube Data API key).
 
 ## Decisions
 
@@ -164,6 +178,13 @@ properties).
   to get two tabs with separate storage (two people). Player actions can be
   faked with `iframe.contentWindow.postMessage` of the IFrame API's command
   JSON. A background tab can't start playback, and its timers run once a second.
+- Testing Tandem's page with a partner: a sync server on a spare port, the
+  local program with throwaway `XDG_CONFIG_HOME`/`XDG_DATA_HOME` (config
+  `sync_server` pointing at it), headless Firefox over BiDi as one person
+  and a socket.io-client script as the other. With one profile the page
+  picks it by itself. Stop Firefox with
+  `pkill -f "remote-debugging-port [9]333"` in a command of its own: a
+  pattern matching the profile path also matches your own shell.
 - Testing local-file sync: run two copies of the local program with
   different `XDG_CONFIG_HOME`/`XDG_DATA_HOME` and ports, each with its own
   folder holding the same film, and act as the pages with socket.io-client

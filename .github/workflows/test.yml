@@ -1,0 +1,40 @@
+# Runs every package's tests on each push and pull request.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 20 is the oldest the local program supports; 22 is what the packages bundle.
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Sync logic (web)
+        working-directory: web
+        run: npm test
+
+      - name: Local program
+        working-directory: local
+        run: npm ci && npm test
+
+      - name: Sync server
+        working-directory: server
+        run: npm ci && npm test
+
+      - name: Two simulated people, end to end
+        working-directory: server
+        run: npm run simulate
+
+      - name: Browser extension
+        working-directory: extension
+        run: npm ci && npm test && npm run build

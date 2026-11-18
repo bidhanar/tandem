@@ -1,0 +1,57 @@
+# Pushing a tag like v0.2.0 builds the packages (scripts/package.sh) and
+# puts them on a GitHub release: the Windows zip, the Linux archive and the
+# browser extension zip.
+#
+# Settings (repository → Settings → Secrets and variables → Actions):
+# - Variable TANDEM_SYNC_SERVER: the sync server the packages start with
+#   (without it, the Render address below).
+# - Optional secrets AMO_API_KEY and AMO_API_SECRET (addons.mozilla.org →
+#   Developer Hub → Manage API Keys): with them, the Firefox extension is
+#   also signed by Mozilla as an unlisted add-on, and the release gets a
+#   .xpi that installs with one click and stays installed. Mozilla only
+#   signs each version once, so raise "version" in extension/package.json
+#   for every release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # to create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TANDEM_SYNC_SERVER: ${{ vars.TANDEM_SYNC_SERVER || 'https://tandem-sync-a3pn.onrender.com' }}
+      AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+      AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests
+        run: |
+          (cd web && npm test)
+          (cd local && npm ci && npm test)
+          (cd server && npm ci && npm test)
+
+      - name: Build the packages
+        run: scripts/package.sh
+
+      - name: Sign the Firefox extension (only with the AMO secrets)
+        if: env.AMO_API_KEY != ''
+        run: |
+          npx --yes web-ext@8 sign --channel unlisted \
+            --source-dir extension/dist --artifacts-dir release \
+            --api-key "$AMO_API_KEY" --api-secret "$AMO_API_SECRET"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "Tandem $GITHUB_REF_NAME" --generate-notes \
+            release/*.zip release/*.tar.gz $(ls release/*.xpi 2>/dev/null)
