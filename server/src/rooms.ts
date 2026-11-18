@@ -14,14 +14,33 @@ export type Member = {
    */
   sockets: Set<string>;
   waitingSince: number | null; // when they entered state.waitingFor
-  /** They said they're away from the screen (AFK). Only shown to the others; playback ignores it. */
+  /** They said they're away from the screen (AFK). The room pauses if its options say so. */
   away: boolean;
+  /** When their last connection went, until the room has paused for it (or they're back). */
+  offlineSince: number | null;
 };
+
+/** Choices anyone in the room can change; they apply to everyone. */
+export type RoomOptions = {
+  /** Pause for everyone when someone steps away, goes offline or leaves. */
+  pauseOnAway: boolean;
+};
+
+export const defaultOptions = (): RoomOptions => ({ pauseOnAway: true });
+
+/** Options as sent by a client (for `restore`), with anything odd replaced by the default. */
+export function cleanOptions(value: unknown): RoomOptions {
+  const options = defaultOptions();
+  const v = value as Record<string, unknown> | null;
+  if (v && typeof v === 'object' && typeof v.pauseOnAway === 'boolean') options.pauseOnAway = v.pauseOnAway;
+  return options;
+}
 
 export type Room = {
   code: string;
   state: RoomState;
   queue: QueueItem[]; // YouTube videos lined up to play next
+  options: RoomOptions;
   members: Map<string, Member>;
   emptySince: number | null; // when the last person disconnected
   stalledSince: number | null; // when state.waitingFor last went from empty to not
@@ -50,12 +69,12 @@ export class Rooms {
    * and no room holds it now. Returns the room with that code either way, or
    * undefined for a code we would never have made.
    */
-  restore(code: string, state: RoomState, queue: QueueItem[]): Room | undefined {
+  restore(code: string, state: RoomState, queue: QueueItem[], options = defaultOptions()): Room | undefined {
     const normalized = normalizeCode(code);
     const existing = this.rooms.get(normalized);
     if (existing) return existing;
     if (!CODE_PATTERN.test(normalized)) return undefined;
-    const room: Room = { code: normalized, state, queue, members: new Map(), emptySince: null, stalledSince: null };
+    const room: Room = { code: normalized, state, queue, options, members: new Map(), emptySince: null, stalledSince: null };
     this.rooms.set(normalized, room);
     return room;
   }
@@ -65,7 +84,9 @@ export class Rooms {
     do {
       code = Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
-    const room: Room = { code, state: emptyState(now), queue: [], members: new Map(), emptySince: null, stalledSince: null };
+    const room: Room = {
+      code, state: emptyState(now), queue: [], options: defaultOptions(), members: new Map(), emptySince: null, stalledSince: null,
+    };
     this.rooms.set(code, room);
     return room;
   }

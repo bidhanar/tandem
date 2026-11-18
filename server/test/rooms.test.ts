@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { restoredState } from '../src/room.ts';
-import { memberList, Rooms } from '../src/rooms.ts';
+import { cleanOptions, memberList, Rooms } from '../src/rooms.ts';
 
 test('a lost room comes back under its old code; an existing one is reused', () => {
   const rooms = new Rooms();
@@ -23,10 +23,16 @@ test('codes we would never make are not restored', () => {
 test('the member list says who is away', () => {
   const rooms = new Rooms();
   const room = rooms.create(1000);
-  room.members.set('a', { id: 'a', name: 'Ann', sockets: new Set(['s1']), waitingSince: null, away: true });
-  room.members.set('b', { id: 'b', name: 'Ben', sockets: new Set(), waitingSince: null, away: false });
+  room.members.set('a', { id: 'a', name: 'Ann', sockets: new Set(['s1']), waitingSince: null, away: true, offlineSince: null });
+  room.members.set('b', { id: 'b', name: 'Ben', sockets: new Set(), waitingSince: null, away: false, offlineSince: null });
   assert.deepEqual(memberList(room), [
     { id: 'a', name: 'Ann', online: true, away: true },
     { id: 'b', name: 'Ben', online: false, away: false },
   ]);
+});
+
+test('room options from a client keep only what makes sense', () => {
+  assert.deepEqual(cleanOptions({ pauseOnAway: false }), { pauseOnAway: false });
+  assert.deepEqual(cleanOptions({ pauseOnAway: 'no' }), { pauseOnAway: true });
+  assert.deepEqual(cleanOptions(null), { pauseOnAway: true });
 });

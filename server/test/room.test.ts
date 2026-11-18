@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  addWaiting, applyRequest, emptyState, expectedPosition, isRolling, removeWaiting, type RoomState,
+  addWaiting, applyRequest, emptyState, expectedPosition, isRolling, pauseForAbsence, removeWaiting, type RoomState,
 } from '../src/room.ts';
 
 const ME = 'client-a';
@@ -198,4 +198,15 @@ test('a load records who chose the video and how; pausing and seeking keep it', 
   assert.deepEqual([back.loadedBy, back.loadedHow], [PARTNER, 'autoplay']);
   const junk = restoredState({ mediaType: 'youtube', mediaId: 'vid', loadedBy: 5, loadedHow: 'magic' }, T0);
   assert.deepEqual([junk.loadedBy, junk.loadedHow], [null, null]);
+});
+
+test('someone stepping away pauses a playing room, and says who for', () => {
+  const state = pauseForAbsence(playing(), PARTNER, T0 + 4000);
+  assert.deepEqual([state.isPlaying, state.position, state.pausedFor, state.updatedBy], [false, 4, PARTNER, PARTNER]);
+  assert.equal(pauseForAbsence(state, ME, T0 + 5000), state); // already paused: nothing to do
+  // A seek keeps the reason; playing (or a deliberate pause) clears it.
+  const seeked = applyRequest(state, { action: 'seek', position: 10 }, ME, BOTH, T0 + 6000)!;
+  assert.equal(seeked.pausedFor, PARTNER);
+  const resumed = applyRequest(seeked, { action: 'play' }, ME, BOTH, T0 + 7000)!;
+  assert.deepEqual([resumed.isPlaying, resumed.pausedFor], [true, null]);
 });

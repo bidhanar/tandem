@@ -26,8 +26,8 @@ export function expectedPosition(state, now) {
  * it restarted and lost it: the media, where playback has got to by now, and
  * the queue. Harmless when the room still exists (the server ignores it).
  */
-export function restoreInfo(state, queue, now) {
-  const info = { queue: queue ?? [] };
+export function restoreInfo(state, queue, now, options) {
+  const info = { queue: queue ?? [], ...(options ? { options } : {}) };
   if (!state?.mediaId) return info;
   return {
     ...info,

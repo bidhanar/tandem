@@ -33,6 +33,12 @@ export type RoomState = {
   loadedBy: string | null;
   loadedHow: LoadedHow | null;
   /**
+   * Set when the room was paused because this member (client id) stepped
+   * away, went offline or left, so the others can be told why and offered
+   * to resume once they're back. Any play, pause or load clears it.
+   */
+  pausedFor: string | null;
+  /**
    * Members who are loading or buffering. While anyone is listed the room
    * holds still at `position`, whatever `isPlaying` says.
    */
@@ -52,7 +58,7 @@ export type StateRequest = {
 export function emptyState(now: number): RoomState {
   return {
     mediaType: null, mediaId: null, mediaTitle: null, isPlaying: false, position: 0,
-    playbackRate: 1, updatedAt: now, version: 0, updatedBy: '', loadedBy: null, loadedHow: null, waitingFor: [],
+    playbackRate: 1, updatedAt: now, version: 0, updatedBy: '', loadedBy: null, loadedHow: null, pausedFor: null, waitingFor: [],
   };
 }
 
@@ -82,7 +88,7 @@ export function applyRequest(
 ): RoomState | null {
   if (request === null || typeof request !== 'object') return null;
   if (request.position !== undefined && !validPosition(request.position)) return null;
-  const stamp = { updatedAt: now, version: state.version + 1, updatedBy: clientId };
+  const stamp = { updatedAt: now, version: state.version + 1, updatedBy: clientId, pausedFor: null };
 
   if (request.action === 'load') {
     if (request.mediaType !== 'youtube' && request.mediaType !== 'local') return null;
@@ -104,9 +110,26 @@ export function applyRequest(
     case 'pause': return { ...state, ...stamp, isPlaying: false, position };
     case 'seek':
       if (request.position === undefined) return null;
-      return { ...state, ...stamp, position };
+      return { ...state, ...stamp, position, pausedFor: state.pausedFor }; // still paused for the same reason
     default: return null;
   }
+}
+
+/**
+ * Pauses the room because a member stepped away, went offline or left (if
+ * the room has that option on). Unchanged if it wasn't playing.
+ */
+export function pauseForAbsence(state: RoomState, clientId: string, now: number): RoomState {
+  if (state.mediaId === null || !state.isPlaying) return state;
+  return {
+    ...state,
+    isPlaying: false,
+    position: expectedPosition(state, now),
+    updatedAt: now,
+    version: state.version + 1,
+    updatedBy: clientId,
+    pausedFor: clientId,
+  };
 }
 
 /** Someone started loading or buffering: hold the room at the current position. */

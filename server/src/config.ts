@@ -25,6 +25,9 @@ export const config = {
   /** Room create/join attempts allowed per address per minute. */
   joinAttemptsPerMinute: number('JOIN_ATTEMPTS_PER_MINUTE', 20),
 
+  /** Someone offline this long pauses the room (if its options say so). A short network blip doesn't. */
+  offlinePauseMs: number('OFFLINE_PAUSE_MS', 5_000),
+
   maxChatLength: 500,
   maxPagePathLength: 2000,
   maxNameLength: 24,

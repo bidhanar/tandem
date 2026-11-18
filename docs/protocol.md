@@ -38,6 +38,7 @@ type RoomState = {
   updatedBy: string;          // client id
   loadedBy: string | null;    // who chose the media now loaded (pause/seek don't change it)
   loadedHow: 'picked' | 'autoplay' | 'queue' | null;
+  pausedFor: string | null;   // paused because this member stepped away, went offline or left
   waitingFor: string[];       // client ids still loading or buffering
 };
 ```
@@ -77,9 +78,13 @@ Questions with an answer use Socket.IO acknowledgements.
 | `page:send` | `{path}`: this tab moved to another youtube.com page | none |
 | `chat:send` | `{text}` | none |
 | `reaction:send` | `{emoji}` | none |
+| `options:set` | `{pauseOnAway}` (boolean), for everyone in the room | none; `options:changed` follows |
+| `chat:typing` | none; sent at most every 2 s while typing | none |
+| `stats:send` | `{rtt?, drift?}` every 5 s: ms to the server, seconds from the room's position (null if unknown) | none |
 | `member:away` | `{away}` (boolean): you stepped away (AFK), or are back | none; `member:changed` follows if it changed |
 
-`room` is `{code, state, queue, members, you}`. `clientId` is a random id the
+`room` is `{code, state, queue, options, members, you}`. `options` is
+`{pauseOnAway}` (default true). `clientId` is a random id the
 client makes once and keeps, so a reconnect is recognised as the same person.
 `action` is `play`, `pause`, `seek` or `load`.
 
@@ -93,6 +98,9 @@ client makes once and keeps, so a reconnect is recognised as the same person.
 | `member:changed` | `{members}` (someone's `away` changed) |
 | `queue:changed` | `{queue}`, entries `{id, mediaId, addedBy}` |
 | `page` | `{from, path}` (to everyone in the room but the sender) |
+| `options:changed` | `{options}` |
+| `typing` | `{from}` (to everyone but the sender) |
+| `stats` | `{from, rtt?, drift?}` (to everyone but the sender; a missing field means "no news", keep the last) |
 | `chat:message` | `{from, name, text, at}` |
 | `reaction` | `{from, emoji}` |
 
@@ -114,6 +122,12 @@ again after every join.
   press in the 4 seconds before. A queued video that starts because its
   turn came is `queue`, credited to whoever added it; pressing play on a
   queue entry is a pick by whoever pressed it.
+- **Pausing for someone who's gone.** With `options.pauseOnAway` on, the
+  room pauses (and sets `pausedFor` to that member) when someone sends
+  `member:away {away: true}`, sends `room:leave`, or stays offline for 5
+  seconds (`OFFLINE_PAUSE_MS`; a quick reconnect doesn't pause). Any play,
+  pause or load clears `pausedFor`; a seek keeps it. Clients use it to say
+  "Paused: Ben stepped away" and, once Ben is back, offer to resume.
 - **Joining** a room with media loaded puts the newcomer in `waitingFor`.
 - **Ready** means the client's player is really playing. A client that is
   listed in `waitingFor` lets its player run until it plays, sends

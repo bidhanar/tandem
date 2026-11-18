@@ -6,8 +6,10 @@ import { Server, type Socket } from 'socket.io';
 
 import { config } from './config.ts';
 import { addToQueue, removeFromQueue, restoredQueue, takeFromQueue, type QueueItem } from './queue.ts';
-import { addWaiting, applyRequest, removeWaiting, restoredState, type RoomState, type StateRequest } from './room.ts';
-import { memberList, Rooms, type Room } from './rooms.ts';
+import {
+  addWaiting, applyRequest, pauseForAbsence, removeWaiting, restoredState, type RoomState, type StateRequest,
+} from './room.ts';
+import { cleanOptions, memberList, Rooms, type Room } from './rooms.ts';
 
 type Reply = (answer: unknown) => void;
 /** What we remember about a connection: which room it is in, and as whom. */
@@ -82,6 +84,11 @@ export function createSyncServer() {
     setState(room, removeWaiting(room.state, clientId, now, delay), now);
   }
 
+  /** Someone stepped away, went offline or left: pause for everyone, if the room wants that. */
+  function pauseFor(room: Room, clientId: string, now: number): void {
+    if (room.options.pauseOnAway) setState(room, pauseForAbsence(room.state, clientId, now), now);
+  }
+
   function allowed(socket: Socket, now: number): boolean {
     const address = socket.handshake.address;
     const recent = (attempts.get(address) ?? []).filter((time) => now - time < 60_000);
@@ -117,6 +124,9 @@ export function createSyncServer() {
     if (member.sockets.size > 0) return; // still here through another connection
 
     stopWaitingFor(room, member.id, now);
+    // Leaving on purpose pauses at once; a dropped connection only if it stays dropped.
+    if (forget) pauseFor(room, member.id, now);
+    else member.offlineSince = now;
     io.to(room.code).emit('member:left', { members: memberList(room) });
     if (onlineIds(room).length === 0) room.emptySince = now;
   }
@@ -136,9 +146,10 @@ export function createSyncServer() {
 
     // The same person may hold several connections (their page and their
     // local program); they share one seat.
-    const member = existing ?? { id: clientId, name, sockets: new Set<string>(), waitingSince: null, away: false };
+    const member = existing ?? { id: clientId, name, sockets: new Set<string>(), waitingSince: null, away: false, offlineSince: null };
     const arrived = member.sockets.size === 0; // new, or back from being offline
     member.name = name;
+    member.offlineSince = null;
     member.sockets.add(socket.id);
     room.members.set(clientId, member);
     room.emptySince = null;
@@ -149,7 +160,10 @@ export function createSyncServer() {
     if (arrived && room.state.mediaId !== null) setState(room, addWaiting(room.state, clientId, now), now);
 
     const members = memberList(room);
-    reply({ ok: true, room: { code: room.code, state: room.state, queue: room.queue, members, you: clientId } });
+    reply({
+      ok: true,
+      room: { code: room.code, state: room.state, queue: room.queue, options: room.options, members, you: clientId },
+    });
     if (arrived) socket.to(room.code).emit('member:joined', { members });
   }
 
@@ -174,7 +188,9 @@ export function createSyncServer() {
       // rebuild it from what they remember.
       if (!room && payload?.restore && typeof payload.restore === 'object') {
         const now = Date.now();
-        room = rooms.restore(code, restoredState(payload.restore, now), restoredQueue(payload.restore.queue));
+        room = rooms.restore(
+          code, restoredState(payload.restore, now), restoredQueue(payload.restore.queue), cleanOptions(payload.restore.options),
+        );
       }
       if (!room) return reply({ ok: false, error: 'No room with that code. Check it with your partner.' });
       join(socket, room, payload, reply);
@@ -262,6 +278,33 @@ export function createSyncServer() {
       if (!found || !member || typeof payload?.away !== 'boolean' || member.away === payload.away) return;
       member.away = payload.away;
       io.to(found.room.code).emit('member:changed', { members: memberList(found.room) });
+      if (member.away) pauseFor(found.room, member.id, Date.now());
+    });
+
+    socket.on('options:set', (payload: any) => {
+      const found = roomOf(socket);
+      if (!found || typeof payload?.pauseOnAway !== 'boolean') return;
+      found.room.options = { ...found.room.options, pauseOnAway: payload.pauseOnAway };
+      io.to(found.room.code).emit('options:changed', { options: found.room.options });
+    });
+
+    // Someone is typing a chat message (sent at most every couple of seconds while they type).
+    socket.on('chat:typing', () => {
+      const found = roomOf(socket);
+      if (found) socket.to(found.room.code).emit('typing', { from: found.seat.clientId });
+    });
+
+    // How someone's connection and sync are doing, every few seconds: the
+    // round trip to this server in ms, and how far their player is from
+    // the room's position (null when that can't be said). Passed on as is.
+    socket.on('stats:send', (payload: any) => {
+      const found = roomOf(socket);
+      if (!found) return;
+      const stats: { from: string; rtt?: number; drift?: number | null } = { from: found.seat.clientId };
+      if (typeof payload?.rtt === 'number' && payload.rtt >= 0 && payload.rtt < 60_000) stats.rtt = Math.round(payload.rtt);
+      if (payload?.drift === null) stats.drift = null;
+      else if (typeof payload?.drift === 'number' && Math.abs(payload.drift) < 100_000) stats.drift = payload.drift;
+      socket.to(found.room.code).emit('stats', stats);
     });
 
     socket.on('reaction:send', (payload: any) => {
@@ -277,6 +320,10 @@ export function createSyncServer() {
     const now = Date.now();
     for (const room of rooms.all()) {
       for (const member of room.members.values()) {
+        if (member.offlineSince !== null && now - member.offlineSince >= config.offlinePauseMs) {
+          member.offlineSince = null; // once
+          pauseFor(room, member.id, now);
+        }
         if (member.waitingSince !== null && now - member.waitingSince > config.waitTimeoutMs) {
           stopWaitingFor(room, member.id, now);
         }
