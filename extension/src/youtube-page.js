@@ -88,3 +88,39 @@ export function watchPath(videoId, seconds = 0) {
   const start = Math.floor(Math.max(0, seconds || 0));
   return `/watch?v=${videoId}${start > 0 ? `&t=${start}s` : ''}`;
 }
+
+/** Room codes as the sync server makes them (it ignores case and anything but letters and digits). */
+const ROOM_CODE = /^[A-Za-z0-9]{4,12}$/;
+
+/**
+ * An invite: a youtube.com address that makes Tandem join a room when the
+ * tab opens it. On the room's video if there is one, so it's a useful link
+ * even for someone without the extension.
+ */
+export function inviteLink(code, videoId) {
+  const page = videoId && VIDEO_ID.test(videoId) ? `/watch?v=${videoId}` : '/';
+  return `https://www.youtube.com${page}#tandem=${code}`;
+}
+
+/** The room code in an invite's #tandem=CODE part, or null. */
+export function inviteCode(hash) {
+  const match = /(?:^#|&)tandem=([^&]*)/.exec(String(hash ?? ''));
+  const code = match ? decodeURIComponent(match[1]).trim() : '';
+  return ROOM_CODE.test(code) ? code.toUpperCase() : null;
+}
+
+/** The video a link points to (youtube.com/watch, youtu.be, or a Short), or null. */
+export function videoIdOf(link) {
+  let url;
+  try {
+    url = new URL(String(link ?? ''));
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^(www\.|m\.)/, '');
+  let id = null;
+  if (host === 'youtu.be') id = url.pathname.slice(1);
+  else if (host === 'youtube.com' && url.pathname === '/watch') id = url.searchParams.get('v');
+  else if (host === 'youtube.com' && url.pathname.startsWith('/shorts/')) id = url.pathname.split('/')[2];
+  return id && VIDEO_ID.test(id) ? id : null;
+}

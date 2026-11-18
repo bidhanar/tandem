@@ -37,18 +37,36 @@
       <b id="room-code"></b>
       <button class="btn small" id="copy">Copy</button>
     </div>
+    <button class="btn" id="invite" title="A youtube.com link that puts whoever opens it (with Tandem installed) in this room">Copy invite link</button>
     <p id="partner"></p>
     <p id="line" class="hint"></p>
     <p id="chosen" class="hint"></p>
-    <button class="btn" id="away" title="Let the others know you have stepped away">I'm away</button>
+    <p id="quality" class="hint"></p>
+    <div class="row">
+      <button class="btn grow" id="resume" hidden>▶ Resume</button>
+      <button class="btn grow" id="away" title="Let the others know you have stepped away">I'm away</button>
+    </div>
     <div class="chat">
       <div id="log" class="log"></div>
+      <p id="typing" class="hint typing"></p>
       <form id="say" class="row">
         <input id="say-text" maxlength="500" placeholder="Say something" autocomplete="off">
         <button class="btn" type="submit">Send</button>
       </form>
     </div>
     <p class="hint">Reactions: the 💬 button on the badge at the bottom right of the page.</p>
+
+    <div class="queue">
+      <div class="queue-head">
+        <b id="queue-title">Up next</b>
+        <button class="btn small" id="queue-clear" hidden>Clear</button>
+      </div>
+      <ol id="queue-list"></ol>
+      <p class="hint">Right-click any YouTube video link and pick "Add to Tandem queue".</p>
+    </div>
+
+    <label class="check"><input type="checkbox" id="pause-on-away"> Pause for everyone when someone steps away or leaves</label>
+    <label class="check"><input type="checkbox" id="chat-sound"> Sound for new messages</label>
     <button class="btn" id="leave">Leave room</button>
   </section>
 

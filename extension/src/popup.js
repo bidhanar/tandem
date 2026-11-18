@@ -9,6 +9,8 @@ let tabId = null;
 let busy = false;
 let away = false; // you told the room you're away (AFK)
 let chatShown = ''; // the messages drawn last, to redraw only when they change
+let queueShown = ''; // likewise for the queue
+let invite = null; // the room's invite link
 
 /** A question to the YouTube tab. Null if Tandem isn't running there. */
 async function askTab(message) {
@@ -41,6 +43,12 @@ function draw(status) {
     $('#away').textContent = away ? "I'm back" : "I'm away";
     $('#away').classList.toggle('on', away);
     drawChat(status.chat);
+    drawQueue(status.queue);
+    invite = status.invite;
+    $('#quality').textContent = status.quality.join('\n');
+    $('#typing').textContent = status.typing;
+    $('#resume').hidden = !status.resumable;
+    if (document.activeElement !== $('#pause-on-away')) $('#pause-on-away').checked = status.options.pauseOnAway;
   } else {
     show('lobby');
   }
@@ -71,6 +79,41 @@ function drawChat(messages) {
     return line;
   }));
   log.scrollTop = log.scrollHeight;
+}
+
+/** The room's queue, with buttons to play an entry now or take it out. */
+function drawQueue(queue) {
+  const key = JSON.stringify(queue);
+  if (key === queueShown) return;
+  queueShown = key;
+  $('#queue-title').textContent = queue.length ? `Up next · ${queue.length}` : 'Queue';
+  $('#queue-clear').hidden = !queue.length;
+  $('#queue-list').replaceChildren(...queue.map((item) => {
+    const li = document.createElement('li');
+    const picture = document.createElement('img');
+    picture.src = `https://i.ytimg.com/vi/${item.mediaId}/mqdefault.jpg`;
+    picture.alt = '';
+    const what = document.createElement('div');
+    what.className = 'what';
+    const title = document.createElement('b');
+    title.textContent = item.title ?? 'YouTube video';
+    const by = document.createElement('span');
+    by.textContent = `added by ${item.by}`;
+    what.append(title, by);
+    const play = button('▶', 'Play this now, for everyone', () => act({ do: 'queue-play', id: item.id }));
+    const remove = button('✕', 'Take it out of the queue', () => act({ do: 'queue-remove', id: item.id }));
+    li.append(picture, what, play, remove);
+    return li;
+  }));
+}
+
+function button(text, title, onClick) {
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = text;
+  b.title = title;
+  b.addEventListener('click', onClick);
+  return b;
 }
 
 async function refresh() {
@@ -119,6 +162,21 @@ async function start() {
   });
   $('#leave').addEventListener('click', () => act({ do: 'leave' }));
   $('#away').addEventListener('click', () => act({ do: 'away', away: !away }));
+  $('#say-text').addEventListener('input', () => askTab({ do: 'typing' }));
+  $('#resume').addEventListener('click', () => act({ do: 'resume' }));
+  $('#queue-clear').addEventListener('click', () => act({ do: 'queue-clear' }));
+  $('#pause-on-away').addEventListener('change', () => act({ do: 'options', pauseOnAway: $('#pause-on-away').checked }));
+  $('#chat-sound').checked = (await chrome.storage.local.get('chatSound')).chatSound !== false;
+  $('#chat-sound').addEventListener('change', () => chrome.storage.local.set({ chatSound: $('#chat-sound').checked }));
+  $('#invite').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(invite);
+      $('#invite').textContent = 'Copied: send it to your partner';
+    } catch {
+      $('#invite').textContent = "Couldn't copy";
+    }
+    setTimeout(() => { $('#invite').textContent = 'Copy invite link'; }, 2000);
+  });
   $('#say').addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = $('#say-text').value.trim();

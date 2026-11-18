@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { pageOf, parseStart, samePage, shareablePath, watchPath } from '../src/youtube-page.js';
+import {
+  inviteCode, inviteLink, pageOf, parseStart, samePage, shareablePath, videoIdOf, watchPath,
+} from '../src/youtube-page.js';
 
 test('video pages', () => {
   assert.deepEqual(pageOf('/watch?v=dQw4w9WgXcQ'), { kind: 'watch', videoId: 'dQw4w9WgXcQ', start: 0, path: '/watch?v=dQw4w9WgXcQ' });
@@ -62,4 +64,25 @@ test('channel addresses YouTube can only open with a reload are sent by id', () 
   assert.equal(shareablePath('/@BlenderOfficial', 'FEtrending'), '/@BlenderOfficial'); // not a channel id
   assert.equal(shareablePath('/results?search_query=a', id), '/results?search_query=a');
   assert.equal(pageOf(shareablePath('/@BlenderOfficial', id)).kind, 'page');
+});
+
+test('invite links', () => {
+  assert.equal(inviteLink('K7QPXM', 'dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ#tandem=K7QPXM');
+  assert.equal(inviteLink('K7QPXM', null), 'https://www.youtube.com/#tandem=K7QPXM');
+  assert.equal(inviteCode('#tandem=K7QPXM'), 'K7QPXM');
+  assert.equal(inviteCode('#tandem=k7qpxm'), 'K7QPXM');
+  assert.equal(inviteCode('#t=10&tandem=K7QPXM'), 'K7QPXM');
+  assert.equal(inviteCode('#tandem=<script>'), null);
+  assert.equal(inviteCode('#something'), null);
+  assert.equal(inviteCode(''), null);
+});
+
+test('the video a link points to', () => {
+  assert.equal(videoIdOf('https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1'), 'dQw4w9WgXcQ');
+  assert.equal(videoIdOf('https://youtu.be/dQw4w9WgXcQ?t=5'), 'dQw4w9WgXcQ');
+  assert.equal(videoIdOf('https://m.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+  assert.equal(videoIdOf('https://www.youtube.com/shorts/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+  assert.equal(videoIdOf('https://www.youtube.com/@someone'), null);
+  assert.equal(videoIdOf('https://example.com/watch?v=dQw4w9WgXcQ'), null);
+  assert.equal(videoIdOf('not a link'), null);
 });

@@ -147,6 +147,27 @@ browser asks (in Brave, turn Shields down for youtube.com).
     "YouTube autoplayed it on B's side" (or "on your side"). Clicking an
     end-screen video instead counts as a pick. On Tandem's page it shows
     after the title.
+14. Invite link: A presses "Copy invite link" in the popup and opens it in
+    B's browser (in a new tab). B's tab joins the room by itself and goes
+    to the room's video. The address bar no longer shows `#tandem=…`.
+15. Queue: right-click a video thumbnail or link on youtube.com, "Add to
+    Tandem queue". It shows in both popups under "Up next", with picture
+    and title. ▶ plays it for both; ✕ takes it out. When the current video
+    ends, the queued one plays for both, not YouTube's autoplay pick.
+    Right-clicking a video when not in a room says to join one first.
+16. Unread: with B's YouTube tab in the background (or the chat closed), A
+    sends a message. B's tab title starts with "💬1 ·" and a soft sound
+    plays (turn it off with "Sound for new messages" in the popup). Opening
+    the chat clears it.
+17. Pause when away: while playing, B presses "I'm away": it pauses for
+    both, and A's badge says "Paused at … · B stepped away". B presses
+    "I'm back": a green "▶ Resume" appears for both; pressing it plays.
+    Closing B's tab: after 5 seconds A is paused ("B went offline"). With
+    "Pause for everyone when someone steps away" unticked (in either
+    popup), none of this pauses.
+18. Typing: while A types, B's chat panel and popup say "A is typing…".
+19. Connection: the chat panel and popup show each person's round trip and
+    whether they're in sync ("Ben: 96 ms · in sync"), updated every 5 s.
 
 ### Automated checks
 

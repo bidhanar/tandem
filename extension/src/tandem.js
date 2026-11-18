@@ -19,7 +19,7 @@
 import { io } from './socket.io.esm.min.js';
 import { SYNC_CONFIG } from './sync-config.js';
 import { expectedPosition, bestOffset, isRolling, restoreInfo, SyncController } from './sync-core.js';
-import { pageOf, samePage, shareablePath, watchPath } from './youtube-page.js';
+import { inviteCode, inviteLink, pageOf, samePage, shareablePath, videoIdOf, watchPath } from './youtube-page.js';
 import { DEFAULT_SERVER } from './defaults.js';
 
 /** How often the player is read. */
@@ -35,6 +35,16 @@ const IN_SYNC = 0.25;
  * it, right after the video ended, is YouTube's autoplay, not the person.
  */
 const AUTOPLAY_QUIET_MS = 4000;
+/** How often your connection and sync are reported to the others. */
+const STATS_MS = 5000;
+/** Reports older than this are no longer shown. */
+const STATS_STALE_MS = 16_000;
+/** "Typing" goes out at most this often while you type… */
+const TYPING_SEND_MS = 2000;
+/** …and is shown this long after it last came. */
+const TYPING_SHOW_MS = 3500;
+/** A round trip slower than this is called slow. */
+const SLOW_RTT_MS = 400;
 
 const T = {
   settings: null, // { server, name, clientId }
@@ -43,7 +53,9 @@ const T = {
   clockOffset: 0, // server time minus performance.now()
   message: '', // what went wrong, or what is taking a while; shown in the popup
   room: null, // { code, members, you }
-  queue: [], // kept only so a restarted server can be given it back
+  queue: [], // videos lined up to play next: [{ id, mediaId, addedBy }]
+  titles: new Map(), // video id -> title (null while being looked up)
+  options: { pauseOnAway: true }, // the room's options (see docs/protocol.md)
   controller: null,
   page: pageOf(location.href), // the youtube.com page this tab shows
   goingTo: null, // a page we asked YouTube to open (for the room or the partner), with `at`
@@ -62,6 +74,10 @@ const T = {
   chat: [], // messages in this room, oldest first: { from, name, text, at }
   unread: 0, // messages that came while the chat was closed
   chatOpen: false, // the chat panel above the badge is open
+  chatSound: true, // a soft sound for messages that come while you're not looking
+  typing: new Map(), // client id -> when they were last said to be typing
+  lastTypingSent: 0,
+  stats: new Map(), // client id -> { rtt, drift, at }: connection and sync, yours included
   timers: [],
 };
 
@@ -201,6 +217,11 @@ function pageChanged(before, after) {
     c.playerRestarted(); // a new page starts the player over, and it plays by itself
     if (ours || after.videoId === roomVideo(held ?? c.state)) {
       if (held) c.onRemoteState(held);
+    } else if (autoplayed(before) && (T.queue.length > 0 || roomVideo(c.state) !== before.videoId)) {
+      // The room's queue has the next video, not YouTube's autoplay. The
+      // server starts it when the video ends; go to it (or wait for it).
+      const next = roomVideo(c.state);
+      if (next && next !== before.videoId) go(watchPath(next, expectedPosition(c.state, serverNow())));
     } else {
       // The person here picked this video, or YouTube's autoplay moved on to it: play it for both.
       c.requestLoad('youtube', after.videoId, after.start, autoplayed(before) ? 'autoplay' : 'picked');
@@ -254,7 +275,7 @@ function partnerPage({ from, path }) {
 
 /** The room's state, from the server. */
 function deliver(state) {
-  remember.set('known', { state, queue: T.queue });
+  remember.set('known', { state, queue: T.queue, options: T.options });
   const lookingAround = T.page.kind !== 'watch';
   // While looking around, only a new video takes us back to a video page.
   if (lookingAround && !(roomVideo(state) && roomVideo(state) !== T.leftVideo)) {
@@ -350,7 +371,20 @@ async function connect() {
     draw();
   });
   socket.on('state:changed', ({ state }) => deliver(state));
-  socket.on('queue:changed', ({ queue }) => { T.queue = queue; });
+  socket.on('queue:changed', ({ queue }) => {
+    T.queue = queue;
+    remember.set('known', { ...remember.get('known'), queue });
+    drawChat();
+  });
+  socket.on('options:changed', ({ options }) => {
+    T.options = options;
+    remember.set('known', { ...remember.get('known'), options });
+  });
+  socket.on('typing', someoneTyping);
+  socket.on('stats', ({ from, ...stats }) => {
+    T.stats.set(from, { ...T.stats.get(from), ...stats, at: performance.now() });
+    drawChat();
+  });
   socket.on('member:joined', ({ members }) => membersChanged(members, 'joined'));
   socket.on('member:left', ({ members }) => membersChanged(members, 'left'));
   socket.on('member:changed', ({ members }) => membersChanged(members, 'changed'));
@@ -378,7 +412,11 @@ async function enterRoom(event, payload, rejoining = false) {
     await connect();
     // Coming back to a room: bring what we know, in case the server lost it.
     const known = remember.get('known') ?? {};
-    const restore = rejoining ? { restore: restoreInfo(T.controller?.state ?? known.state, T.queue.length ? T.queue : known.queue, serverNow()) } : {};
+    const restore = rejoining ? {
+      restore: restoreInfo(
+        T.controller?.state ?? known.state, T.queue.length ? T.queue : known.queue, serverNow(), known.options ?? T.options,
+      ),
+    } : {};
     answer = await ask(event, { ...payload, ...restore, clientId: T.settings.clientId, name: T.settings.name });
   } catch (error) {
     console.warn('Tandem: no answer from the sync server:', error);
@@ -406,6 +444,7 @@ async function enterRoom(event, payload, rejoining = false) {
   // The server forgets this when it restarts, so say it again on every (re)join.
   T.socket.emit('member:away', { away: T.away });
   T.queue = answer.room.queue ?? [];
+  T.options = answer.room.options ?? T.options;
   T.page = pageOf(location.href);
   // After a reconnect the server may have restarted its numbering: start over.
   if (rejoining) {
@@ -430,7 +469,7 @@ function leaveRoom() {
   remember.remove('chatOpen');
   Object.assign(T, {
     room: null, controller: null, held: null, queue: [], leftVideo: undefined, endedSent: null, announced: null,
-    away: false, chat: [], unread: 0, chatOpen: false,
+    away: false, chat: [], unread: 0, chatOpen: false, options: { pauseOnAway: true }, typing: new Map(), stats: new Map(),
   });
   draw();
 }
@@ -455,7 +494,7 @@ function membersChanged(members, what) {
 
 // ---------- Away, chat and reactions ----------
 
-/** You're away from the screen (AFK), or back. Only a status: playback goes on as usual. */
+/** You're away from the screen (AFK), or back. The room pauses if its options say so. */
 function setAway(away) {
   T.away = away;
   remember.set('away', away);
@@ -475,11 +514,141 @@ function chatMessage(message) {
   T.chat.push(message);
   T.chat.splice(0, T.chat.length - CHAT_KEEP);
   remember.set('chat', T.chat);
-  if (message.from !== T.room.you && !T.chatOpen) {
-    T.unread += 1;
-    notify(`${message.name}: ${message.text}`, 6000);
+  T.typing.delete(message.from);
+  if (message.from !== T.room.you && (!T.chatOpen || document.hidden)) {
+    T.unread += 1; // shown on 💬 and in the tab's title
+    if (!T.chatOpen) notify(`${message.name}: ${message.text}`, 6000);
+    chime();
   }
   drawChat();
+}
+
+/** You're typing in a chat box: tell the others, now and then. */
+function typing() {
+  const now = performance.now();
+  if (!T.socket?.connected || now - T.lastTypingSent < TYPING_SEND_MS) return;
+  T.lastTypingSent = now;
+  T.socket.emit('chat:typing');
+}
+
+function someoneTyping({ from }) {
+  if (!T.room || from === T.room.you) return;
+  T.typing.set(from, performance.now());
+  drawChat();
+  setTimeout(drawChat, TYPING_SHOW_MS + 100); // to take it away again
+}
+
+/** "Ben is typing…", or ''. */
+function typingLine() {
+  if (!T.room) return '';
+  const now = performance.now();
+  const names = [...T.typing]
+    .filter(([, at]) => now - at < TYPING_SHOW_MS)
+    .map(([id]) => T.room.members.find((m) => m.id === id)?.name)
+    .filter(Boolean);
+  if (!names.length) return '';
+  return `${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} typing…`;
+}
+
+let audio = null;
+
+/** A short, quiet two-note sound for a new message. */
+function chime() {
+  if (!T.chatSound) return;
+  try {
+    audio ??= new AudioContext();
+    if (audio.state === 'suspended') audio.resume();
+    const start = audio.currentTime;
+    [660, 880].forEach((frequency, i) => {
+      const tone = audio.createOscillator();
+      const volume = audio.createGain();
+      const at = start + i * 0.09;
+      tone.frequency.value = frequency;
+      volume.gain.setValueAtTime(0.0001, at);
+      volume.gain.exponentialRampToValueAtTime(0.05, at + 0.02);
+      volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.25);
+      tone.connect(volume).connect(audio.destination);
+      tone.start(at);
+      tone.stop(at + 0.3);
+    });
+  } catch { /* no sound, then */ }
+}
+
+/** Unread messages at the front of the tab's title: "💬2 · …". YouTube sets the title itself, so this keeps putting it back. */
+const TITLE_MARK = /^💬\d+ · /;
+function markTitle() {
+  const plain = document.title.replace(TITLE_MARK, '');
+  const wanted = T.room && T.unread ? `💬${T.unread} · ${plain}` : plain;
+  if (document.title !== wanted) document.title = wanted;
+}
+
+// ---------- Connection quality ----------
+
+/** Every STATS_MS: measure the round trip to the server and tell the others it, and our drift. */
+async function sendStats() {
+  if (!T.room || !T.socket?.connected) return;
+  const t0 = performance.now();
+  try {
+    await ask('time:ping', { t0 });
+  } catch {
+    return;
+  }
+  const rtt = Math.round(performance.now() - t0);
+  const state = T.controller?.state;
+  const drift = T.page.kind === 'watch' && state && isRolling(state, serverNow()) ? T.controller.drift() : null;
+  T.socket.emit('stats:send', { rtt, drift });
+  T.stats.set(T.room.you, { rtt, drift, at: performance.now() });
+  drawChat();
+}
+
+/** "90 ms · in sync", "650 ms (slow) · 0.4 s behind", or '' with no recent report. */
+function qualityOf(id) {
+  const s = T.stats.get(id);
+  if (!s || performance.now() - s.at > STATS_STALE_MS) return '';
+  const parts = [];
+  if (typeof s.rtt === 'number') parts.push(`${s.rtt} ms${s.rtt > SLOW_RTT_MS ? ' (slow)' : ''}`);
+  if (typeof s.drift === 'number') {
+    parts.push(Math.abs(s.drift) < IN_SYNC ? 'in sync' : `${Math.abs(s.drift).toFixed(1)} s ${s.drift > 0 ? 'ahead' : 'behind'}`);
+  }
+  return parts.join(' · ');
+}
+
+// ---------- The queue ----------
+
+/** A video's title, looked up the first time it's asked for (null until then). */
+function titleOf(videoId) {
+  if (T.titles.has(videoId)) return T.titles.get(videoId);
+  T.titles.set(videoId, null);
+  const link = encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
+  fetch(`https://www.youtube.com/oembed?url=${link}&format=json`)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((info) => { if (typeof info?.title === 'string') T.titles.set(videoId, info.title); })
+    .catch(() => { /* shown without a title */ });
+  return null;
+}
+
+/** "Add to Tandem queue" from the right-click menu on a video link. */
+function queueAdd(link) {
+  const videoId = videoIdOf(link);
+  if (!videoId) return toast("That isn't a link to a YouTube video.");
+  if (!T.room || !T.socket?.connected) return toast('Join a Tandem room first (click the Tandem icon).');
+  T.socket.emit('queue:add', { mediaIds: [videoId] });
+  titleOf(videoId);
+  notify(T.controller?.state?.mediaId ? 'Added to the queue' : 'Playing it for everyone');
+}
+
+/** A short message in the corner when there's no badge (you're not in a room). */
+function toast(text) {
+  if (T.room) return notify(text);
+  const host = document.createElement('tandem-toast');
+  host.attachShadow({ mode: 'open' }).innerHTML = `<style>
+    :host { all: initial; position: fixed; right: 16px; bottom: 16px; z-index: 2000; }
+    p { margin: 0; padding: 9px 14px; background: rgba(14, 14, 18, .94); color: #f5f5f6; border-radius: 999px;
+      font: 500 13px/1.35 Roboto, Arial, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+  </style><p></p>`;
+  host.shadowRoot.querySelector('p').textContent = `Tandem: ${text}`;
+  document.body.append(host);
+  setTimeout(() => host.remove(), 4000);
 }
 
 function setChatOpen(open) {
@@ -503,6 +672,7 @@ function startController() {
   T.timers.push(setInterval(step, READ_MS));
   T.timers.push(setInterval(() => { if (T.page.kind === 'watch') T.controller?.tick(); }, SYNC_CONFIG.tickMs));
   T.timers.push(setInterval(draw, 500));
+  T.timers.push(setInterval(sendStats, STATS_MS));
 }
 
 // ---------- What you see ----------
@@ -550,10 +720,35 @@ function statusLine() {
   const nameOf = (id) => (id === T.room.you ? 'you' : T.room.members.find((m) => m.id === id)?.name ?? 'your partner');
   if (state.waitingFor.length) return `Waiting for ${state.waitingFor.map(nameOf).join(' and ')} to load…`;
   if (state.isPlaying && state.updatedAt > now + 300) return `Starting in ${Math.ceil((state.updatedAt - now) / 1000)}`;
+  if (!state.isPlaying && state.pausedFor) return `Paused at ${clock(state.position)} · ${pausedReason(state).text}`;
   if (!isRolling(state, now)) return `Paused at ${clock(state.position)}`;
   const drift = T.controller?.drift();
   if (drift == null || Math.abs(drift) < IN_SYNC) return 'Playing · in sync';
   return `Playing · ${Math.abs(drift).toFixed(1)} s ${drift > 0 ? 'ahead' : 'behind'}, catching up`;
+}
+
+/**
+ * Why the room was paused for someone, and whether to offer "Resume": once
+ * they're back (or gone for good), not while they're still away.
+ */
+function pausedReason(state) {
+  const id = state.pausedFor;
+  if (id === T.room.you) return T.away ? { text: "you're away", resume: false } : { text: 'you were away', resume: true };
+  const m = T.room.members.find((member) => member.id === id);
+  if (!m) return { text: 'your partner left', resume: true };
+  if (!m.online) return { text: `${m.name} went offline`, resume: false };
+  if (m.away) return { text: `${m.name} stepped away`, resume: false };
+  return { text: `${m.name} is back`, resume: true };
+}
+
+/** Whether to offer "Resume" now. */
+function resumable() {
+  const state = T.held ?? T.controller?.state;
+  return Boolean(T.room && state?.mediaId && !state.isPlaying && state.pausedFor && pausedReason(state).resume);
+}
+
+function resume() {
+  T.socket?.emit('state:request', { action: 'play' }); // from where it was paused
 }
 
 /** What the popup shows. */
@@ -570,6 +765,21 @@ function status() {
     partners: T.room ? partnersPresence() : 'offline',
     chosen: chosenBy(T.held ?? T.controller?.state),
     away: T.away,
+    invite: T.room ? inviteLink(T.room.code, roomVideo(T.held ?? T.controller?.state)) : null,
+    options: T.options,
+    resumable: resumable(),
+    typing: typingLine(),
+    // Everyone else's connection and sync, and yours.
+    quality: T.room ? T.room.members.map((m) => {
+      const q = qualityOf(m.id);
+      return q && `${m.id === T.room.you ? 'You' : m.name}: ${q}`;
+    }).filter(Boolean) : [],
+    queue: T.room ? T.queue.map((item) => ({
+      id: item.id,
+      mediaId: item.mediaId,
+      title: titleOf(item.mediaId),
+      by: item.addedBy === T.room.you ? 'you' : T.room.members.find((m) => m.id === item.addedBy)?.name ?? 'someone',
+    })) : [],
     // The latest messages, for the popup's small chat.
     chat: T.room ? T.chat.slice(-POPUP_CHAT).map((m) => ({ name: m.name, text: m.text, at: m.at, mine: m.from === T.room.you })) : [],
     line: statusLine(),
@@ -599,6 +809,12 @@ const BADGE_STYLE = `
   .chat-btn { flex: none; display: flex; align-items: center; gap: 4px; padding: 4px 10px;
     background: rgba(255, 255, 255, .08); border: 0; border-radius: 999px; }
   .chat-btn:hover { background: rgba(255, 255, 255, .16); }
+  .resume-btn { flex: none; padding: 4px 12px; background: #3ddc84; color: #08140d; border: 0; border-radius: 999px;
+    font-weight: 700; }
+  .resume-btn[hidden] { display: none; }
+  .person small { color: #a7a7b0; }
+  .typing { padding: 0 12px 6px; color: #a7a7b0; font-size: 12px; font-style: italic; }
+  .typing:empty { display: none; }
   .count { min-width: 16px; padding: 0 5px; background: #ff5a36; color: #fff; border-radius: 999px;
     font-size: 11px; font-weight: 700; text-align: center; }
   .count:empty { display: none; }
@@ -607,7 +823,7 @@ const BADGE_STYLE = `
     background: rgba(14, 14, 18, .97); border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, .45); overflow: hidden; }
   .panel[hidden] { display: none; }
-  .people { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 10px 12px;
+  .people { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, .08); color: #d6d6dc; }
   .person { display: flex; align-items: center; gap: 6px; }
   .chosen { padding: 6px 12px; border-bottom: 1px solid rgba(255, 255, 255, .08); color: #a7a7b0; font-size: 12px; }
@@ -662,12 +878,14 @@ function makeBadge() {
         <div class="people"></div>
         <div class="chosen"></div>
         <div class="log"></div>
+        <div class="typing"></div>
         <div class="reacts">${REACTIONS.map((emoji) => `<button type="button" title="Send ${emoji} to everyone">${emoji}</button>`).join('')}</div>
         <form class="say"><input maxlength="500" placeholder="Say something" autocomplete="off"><button type="submit">Send</button></form>
         <button type="button" class="away-btn"></button>
       </div>
       <div class="pill" title="Tandem. Click to fold or unfold.">
         <i class="dot"></i><b class="code"></b><span class="text"></span>
+        <button type="button" class="resume-btn" title="Play again, for everyone" hidden>▶ Resume</button>
         <button type="button" class="chat-btn" title="Chat and reactions">💬<span class="count"></span></button>
       </div>
     </div>`;
@@ -682,6 +900,10 @@ function makeBadge() {
     event.stopPropagation(); // not a fold
     setChatOpen(!T.chatOpen);
   });
+  $('.resume-btn').addEventListener('click', (event) => {
+    event.stopPropagation(); // not a fold
+    resume();
+  });
   $('.reacts').addEventListener('click', (event) => {
     const emoji = event.target.closest('button')?.textContent;
     if (emoji) T.socket?.emit('reaction:send', { emoji });
@@ -692,6 +914,7 @@ function makeBadge() {
     if (sendChat(input.value.trim())) input.value = '';
   });
   // Typing here is for the chat, not YouTube's shortcuts (k pauses, f goes full screen, …).
+  input.addEventListener('input', typing);
   for (const type of ['keydown', 'keypress', 'keyup']) {
     input.addEventListener(type, (event) => {
       event.stopPropagation();
@@ -704,6 +927,7 @@ function makeBadge() {
 }
 
 function draw() {
+  markTitle();
   if (!T.room) {
     badge?.remove();
     badge = null;
@@ -718,6 +942,7 @@ function draw() {
   const text = notice ?? `${T.away ? "You're away · " : ''}${partnerLine()} · ${statusLine()}`;
   const box = shadow.querySelector('.text');
   if (box.textContent !== text) box.textContent = text;
+  shadow.querySelector('.resume-btn').hidden = !resumable();
 }
 
 /** The chat panel: who's here, the messages, and your away button. */
@@ -726,18 +951,23 @@ function drawChat() {
   const shadow = badge.shadowRoot;
   const $ = (selector) => shadow.querySelector(selector);
   $('.count').textContent = T.unread ? String(T.unread) : '';
+  markTitle();
   $('.panel').hidden = !T.chatOpen;
   if (!T.chatOpen) return;
 
   $('.people').replaceChildren(...T.room.members.map((m) => {
     const person = el('span', 'person');
     const you = m.id === T.room.you;
+    const quality = m.online ? qualityOf(m.id) : '';
     person.append(el('i', `dot ${presence(m)}`), `${m.name}${you ? ' (you)' : ''} · ${presence(m)}`);
+    if (quality) person.append(el('small', '', `· ${quality}`));
     return person;
   }));
+  $('.typing').textContent = typingLine();
+  const upNext = T.queue.length ? ` · ${T.queue.length} up next` : '';
 
   const chosen = chosenBy(T.held ?? T.controller?.state);
-  $('.chosen').textContent = chosen && `This video: ${chosen}`;
+  $('.chosen').textContent = chosen ? `This video: ${chosen}${upNext}` : upNext.slice(3);
 
   const log = $('.log');
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -792,6 +1022,27 @@ async function handle(message) {
     case 'away':
       if (T.room) setAway(message.away === true);
       break;
+    case 'queue-add':
+      queueAdd(message.link);
+      break;
+    case 'queue-play':
+      T.socket?.emit('queue:play', { id: String(message.id ?? '') });
+      break;
+    case 'queue-remove':
+      T.socket?.emit('queue:remove', { id: String(message.id ?? '') });
+      break;
+    case 'queue-clear':
+      T.socket?.emit('queue:clear');
+      break;
+    case 'options':
+      if (typeof message.pauseOnAway === 'boolean') T.socket?.emit('options:set', { pauseOnAway: message.pauseOnAway });
+      break;
+    case 'typing':
+      typing();
+      break;
+    case 'resume':
+      resume();
+      break;
     case 'status':
       // The popup is showing the chat: what's in it has been read.
       if (message.seen && T.unread) {
@@ -830,9 +1081,28 @@ T.away = remember.get('away') === true;
 T.chat = remember.get('chat') ?? [];
 T.chatOpen = remember.get('chatOpen') === true;
 document.addEventListener('yt-navigate-finish', step); // notice a new page at once, not up to READ_MS later
-// A reload keeps this tab in its room.
+// Back to this tab with the chat open: its messages have been seen.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && T.chatOpen && T.unread) {
+    T.unread = 0;
+    drawChat();
+  }
+});
+chrome.storage.local.get('chatSound').then(({ chatSound }) => { T.chatSound = chatSound !== false; });
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.chatSound) T.chatSound = changes.chatSound.newValue !== false;
+});
+
+// An invite link (bridge.js kept its #tandem=CODE) joins that room; otherwise
+// a reload keeps this tab in its room.
+const invited = inviteCode(document.documentElement.getAttribute('data-tandem-invite'));
+document.documentElement.removeAttribute('data-tandem-invite');
 const savedRoom = remember.get('room');
-if (savedRoom) {
+if (invited && invited !== savedRoom) {
+  enterRoom('room:join', { code: invited }).then(() => {
+    if (T.room && T.settings?.name === 'Guest') notify("You're in as Guest. Set your name in Tandem's popup.", 8000);
+  });
+} else if (savedRoom) {
   if (T.page.kind !== 'watch') T.leftVideo = remember.get('leftVideo') ?? undefined;
   enterRoom('room:join', { code: savedRoom }, true);
 }

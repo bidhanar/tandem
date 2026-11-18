@@ -9,7 +9,11 @@
     "default_popup": "popup.html",
     "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "contextMenus"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
@@ -29,7 +33,7 @@
       "matches": ["https://www.youtube.com/*"]
     }
   ],
-  "minimum_chrome_version": "111",
+  "minimum_chrome_version": "121",
   "browser_specific_settings": {
     "gecko": {
       "id": "tandem@tandem-watch-together",

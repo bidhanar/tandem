@@ -13,6 +13,13 @@
 (() => {
   const root = document.documentElement;
 
+  // An invite link (…#tandem=CODE): keep it for the extension, which reads it
+  // when it starts, and take it out of the address before YouTube sees it.
+  if (/(?:^#|&)tandem=/.test(location.hash)) {
+    root.setAttribute('data-tandem-invite', location.hash);
+    history.replaceState(history.state, '', location.pathname + location.search);
+  }
+
   function read() {
     const player = document.getElementById('movie_player');
     if (!player?.getPlayerState) return null;

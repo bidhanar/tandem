@@ -94,6 +94,25 @@ input:focus { outline: 2px solid var(--accent-2); outline-offset: -1px; }
 #partner.away::before { background: var(--away); }
 #away.on { background: var(--away); color: #160a05; border-color: transparent; }
 
+.grow { flex: 1; }
+#resume { background: var(--online); color: #08140d; border-color: transparent; }
+.typing { font-style: italic; }
+#quality { white-space: pre-line; }
+
+.queue { display: flex; flex-direction: column; gap: 6px; }
+.queue-head { display: flex; align-items: center; justify-content: space-between; }
+#queue-list { display: flex; flex-direction: column; gap: 6px; max-height: 190px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+#queue-list:empty { display: none; }
+#queue-list li { display: flex; align-items: center; gap: 8px; }
+#queue-list img { flex: none; width: 64px; height: 36px; border-radius: 4px; object-fit: cover; background: var(--surface); }
+#queue-list .what { flex: 1; min-width: 0; font-size: 12.5px; }
+#queue-list .what b { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+#queue-list .what span { color: var(--muted); }
+#queue-list .btn { padding: 3px 7px; font-size: 12px; }
+
+.check { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.check input { width: auto; margin: 2px 0 0; accent-color: var(--accent-2); }
+
 .chat { display: flex; flex-direction: column; gap: 6px; }
 .log {
   height: 160px;
