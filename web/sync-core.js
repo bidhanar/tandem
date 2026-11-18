@@ -36,6 +36,8 @@ export function restoreInfo(state, queue, now) {
     mediaTitle: state.mediaTitle,
     isPlaying: state.isPlaying,
     position: expectedPosition(state, now),
+    loadedBy: state.loadedBy ?? null,
+    loadedHow: state.loadedHow ?? null,
   };
 }
 
@@ -198,13 +200,14 @@ export class SyncController {
    * once, as the server will, so the player isn't sent back to the old video
    * while the answer is on its way.
    */
-  requestLoad(mediaType, mediaId, position = 0) {
+  /** `how` is 'autoplay' when YouTube moved on to this video by itself, not the person here. */
+  requestLoad(mediaType, mediaId, position = 0, how = 'picked') {
     const now = this.now();
-    this.send('state:request', { action: 'load', mediaType, mediaId, position });
+    this.send('state:request', { action: 'load', mediaType, mediaId, position, how });
     this.state = {
       ...(this.state ?? { version: 0, updatedBy: this.clientId, mediaTitle: null }),
       mediaType, mediaId, mediaTitle: null, isPlaying: true, position, playbackRate: 1,
-      updatedAt: now, waitingFor: [this.clientId],
+      updatedAt: now, waitingFor: [this.clientId], loadedBy: this.clientId, loadedHow: how,
     };
     this.readySent = false;
     this.told = 'play';

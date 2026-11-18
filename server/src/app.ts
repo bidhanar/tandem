@@ -67,7 +67,10 @@ export function createSyncServer() {
     const now = Date.now();
     const request: StateRequest = { action: 'load', mediaType: 'youtube', mediaId: item.mediaId, position: 0 };
     const state = applyRequest(room.state, request, clientId, onlineIds(room), now);
-    if (state) setState(room, state, now);
+    // Pressing play on an entry picks it; otherwise its turn came, and it is
+    // credited to whoever added it.
+    const chosen = entryId === undefined ? { loadedBy: item.addedBy, loadedHow: 'queue' as const } : {};
+    if (state) setState(room, { ...state, ...chosen }, now);
     setQueue(room, queue);
     return true;
   }
@@ -133,7 +136,7 @@ export function createSyncServer() {
 
     // The same person may hold several connections (their page and their
     // local program); they share one seat.
-    const member = existing ?? { id: clientId, name, sockets: new Set<string>(), waitingSince: null };
+    const member = existing ?? { id: clientId, name, sockets: new Set<string>(), waitingSince: null, away: false };
     const arrived = member.sockets.size === 0; // new, or back from being offline
     member.name = name;
     member.sockets.add(socket.id);
@@ -249,6 +252,16 @@ export function createSyncServer() {
       if (found && path.startsWith('/') && !path.startsWith('//')) {
         socket.to(found.room.code).emit('page', { from: found.seat.clientId, path });
       }
+    });
+
+    // Someone marked themselves away from the screen, or back. Only a status
+    // for the others to see; the room plays on as usual.
+    socket.on('member:away', (payload: any) => {
+      const found = roomOf(socket);
+      const member = found?.room.members.get(found.seat.clientId);
+      if (!found || !member || typeof payload?.away !== 'boolean' || member.away === payload.away) return;
+      member.away = payload.away;
+      io.to(found.room.code).emit('member:changed', { members: memberList(found.room) });
     });
 
     socket.on('reaction:send', (payload: any) => {

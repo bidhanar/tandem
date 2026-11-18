@@ -129,6 +129,24 @@ browser asks (in Brave, turn Shields down for youtube.com).
    link pasted on Tandem's page plays on youtube.com for B, and B's pause
    pauses A's player.
 9. A popup opened on a tab that isn't YouTube offers to open YouTube.
+10. Chat: click 💬 on the badge, type a message (letters like k, f and m go
+    into the box, not to YouTube) and press Enter. It shows for both; with
+    the panel closed, the other's badge shows the message and a count on 💬.
+    The popup has the same chat: open it, type, press Enter; the message
+    shows in both popups and both badge panels, and opening the popup
+    clears the badge's count.
+11. Reactions: click an emoji under the chat. It rises from the badge for
+    both, with the sender's name on the other side.
+12. Away: press "I'm away" (in the popup or the chat panel). The other's
+    badge says you are away and its dot turns yellow; "I'm back" undoes it.
+    It survives a reload of your tab. On Tandem's page the person shows as
+    "is away".
+13. Who chose it: when B picks a video, A's badge says "B picked it" for a
+    few seconds, and the chat panel and popup say "This video: B picked it".
+    Let a video end with autoplay on (don't touch anything): it says
+    "YouTube autoplayed it on B's side" (or "on your side"). Clicking an
+    end-screen video instead counts as a pick. On Tandem's page it shows
+    after the title.
 
 ### Automated checks
 

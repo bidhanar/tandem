@@ -7,6 +7,8 @@ import { DEFAULT_SERVER } from './defaults.js';
 const $ = (selector) => document.querySelector(selector);
 let tabId = null;
 let busy = false;
+let away = false; // you told the room you're away (AFK)
+let chatShown = ''; // the messages drawn last, to redraw only when they change
 
 /** A question to the YouTube tab. Null if Tandem isn't running there. */
 async function askTab(message) {
@@ -31,10 +33,14 @@ function draw(status) {
   if (status.room) {
     show('room');
     $('#room-code').textContent = status.room.code;
-    const partnerHere = status.room.people.some((p) => !p.you && p.online);
     $('#partner').textContent = status.partner;
-    $('#partner').classList.toggle('online', partnerHere);
+    $('#partner').className = status.partners; // 'here', 'away' or 'offline': the dot's colour
     $('#line').textContent = status.line;
+    $('#chosen').textContent = status.chosen && `This video: ${status.chosen}`;
+    away = status.away;
+    $('#away').textContent = away ? "I'm back" : "I'm away";
+    $('#away').classList.toggle('on', away);
+    drawChat(status.chat);
   } else {
     show('lobby');
   }
@@ -42,15 +48,41 @@ function draw(status) {
   else $('#message').textContent = status.message || '';
 }
 
+/** The room's latest messages, oldest first. Plain text only: they come from other people. */
+function drawChat(messages) {
+  const key = JSON.stringify(messages.map((m) => [m.at, m.text]));
+  if (key === chatShown) return;
+  chatShown = key;
+  const log = $('#log');
+  if (!messages.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = 'Messages go to everyone in the room.';
+    log.replaceChildren(empty);
+    return;
+  }
+  log.replaceChildren(...messages.map((m) => {
+    const line = document.createElement('p');
+    line.className = m.mine ? 'msg mine' : 'msg';
+    line.title = new Date(m.at).toLocaleTimeString();
+    const who = document.createElement('b');
+    who.textContent = m.mine ? 'You' : m.name;
+    line.append(who, m.text);
+    return line;
+  }));
+  log.scrollTop = log.scrollHeight;
+}
+
 async function refresh() {
-  if (tabId !== null) draw(await askTab({ do: 'status' }));
+  // `seen`: the chat is in front of the person, so the badge's unread count can go.
+  if (tabId !== null) draw(await askTab({ do: 'status', seen: true }));
 }
 
 /** Create, join or leave. Disables the buttons until the tab answers. */
 async function act(message) {
   busy = true;
   document.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-  $('#message').textContent = message.do === 'leave' ? '' : 'Connecting…';
+  $('#message').textContent = message.do === 'create' || message.do === 'join' ? 'Connecting…' : '';
   const status = await askTab(message);
   busy = false;
   document.querySelectorAll('button').forEach((b) => { b.disabled = false; });
@@ -86,6 +118,15 @@ async function start() {
     act({ do: 'join', code: $('#code').value.trim() });
   });
   $('#leave').addEventListener('click', () => act({ do: 'leave' }));
+  $('#away').addEventListener('click', () => act({ do: 'away', away: !away }));
+  $('#say').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const text = $('#say-text').value.trim();
+    if (!text) return;
+    const status = await askTab({ do: 'chat', text });
+    if (status && !status.message) $('#say-text').value = '';
+    draw(status);
+  });
   $('#copy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('#room-code').textContent);
@@ -97,6 +138,7 @@ async function start() {
   });
 
   await refresh();
+  if (!$('#room').hidden) $('#say-text').focus(); // in a room, the popup opens ready to chat
   setInterval(refresh, 700);
 }
 

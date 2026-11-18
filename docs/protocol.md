@@ -36,6 +36,8 @@ type RoomState = {
   updatedAt: number;          // server time in ms; may be a little in the future
   version: number;            // +1 on every change
   updatedBy: string;          // client id
+  loadedBy: string | null;    // who chose the media now loaded (pause/seek don't change it)
+  loadedHow: 'picked' | 'autoplay' | 'queue' | null;
   waitingFor: string[];       // client ids still loading or buffering
 };
 ```
@@ -64,7 +66,7 @@ Questions with an answer use Socket.IO acknowledgements.
 | `room:create` | `{clientId, name}` | `{ok: true, room}` or `{ok: false, error}` |
 | `room:join` | `{code, clientId, name}` | same |
 | `room:leave` | none | none |
-| `state:request` | `{action, position?, mediaType?, mediaId?, mediaTitle?}` | none; a `state:changed` follows if accepted |
+| `state:request` | `{action, position?, mediaType?, mediaId?, mediaTitle?, how?}` | none; a `state:changed` follows if accepted |
 | `buffer:start` | none | none |
 | `buffer:end` | none | none |
 | `queue:add` | `{mediaIds}` (YouTube video ids) | none; `queue:changed` follows |
@@ -75,6 +77,7 @@ Questions with an answer use Socket.IO acknowledgements.
 | `page:send` | `{path}`: this tab moved to another youtube.com page | none |
 | `chat:send` | `{text}` | none |
 | `reaction:send` | `{emoji}` | none |
+| `member:away` | `{away}` (boolean): you stepped away (AFK), or are back | none; `member:changed` follows if it changed |
 
 `room` is `{code, state, queue, members, you}`. `clientId` is a random id the
 client makes once and keeps, so a reconnect is recognised as the same person.
@@ -87,12 +90,16 @@ client makes once and keeps, so a reconnect is recognised as the same person.
 | `state:changed` | `{state}` |
 | `member:joined` | `{members}` |
 | `member:left` | `{members}` |
+| `member:changed` | `{members}` (someone's `away` changed) |
 | `queue:changed` | `{queue}`, entries `{id, mediaId, addedBy}` |
 | `page` | `{from, path}` (to everyone in the room but the sender) |
 | `chat:message` | `{from, name, text, at}` |
 | `reaction` | `{from, emoji}` |
 
-`members` is `[{id, name, online}]`.
+`members` is `[{id, name, online, away}]`. `away` is only a status for the
+others to see (the extension's "I'm away" button); playback ignores it. The
+server forgets it when it restarts, so the extension sends `member:away`
+again after every join.
 
 ## Rules
 
@@ -101,6 +108,12 @@ client makes once and keeps, so a reconnect is recognised as the same person.
   ignore any state whose version isn't newer than the one they have.
 - **Load** sets the media, sets `isPlaying`, and puts every online member in
   `waitingFor`. Playback starts when the last one reports `buffer:end`.
+- **Who chose it.** A load sets `loadedBy` to the sender and `loadedHow` to
+  `picked`, or `autoplay` if the request says `how: 'autoplay'`: the
+  extension saw the video end and the tab move on with no click or key
+  press in the 4 seconds before. A queued video that starts because its
+  turn came is `queue`, credited to whoever added it; pressing play on a
+  queue entry is a pick by whoever pressed it.
 - **Joining** a room with media loaded puts the newcomer in `waitingFor`.
 - **Ready** means the client's player is really playing. A client that is
   listed in `waitingFor` lets its player run until it plays, sends

@@ -14,6 +14,8 @@ export type Member = {
    */
   sockets: Set<string>;
   waitingSince: number | null; // when they entered state.waitingFor
+  /** They said they're away from the screen (AFK). Only shown to the others; playback ignores it. */
+  away: boolean;
 };
 
 export type Room = {
@@ -25,7 +27,7 @@ export type Room = {
   stalledSince: number | null; // when state.waitingFor last went from empty to not
 };
 
-export type MemberInfo = { id: string; name: string; online: boolean };
+export type MemberInfo = { id: string; name: string; online: boolean; away: boolean };
 
 /** Letters and digits that are hard to mix up when read aloud or typed. */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -37,7 +39,7 @@ export function normalizeCode(text: string): string {
 }
 
 export function memberList(room: Room): MemberInfo[] {
-  return [...room.members.values()].map((m) => ({ id: m.id, name: m.name, online: m.sockets.size > 0 }));
+  return [...room.members.values()].map((m) => ({ id: m.id, name: m.name, online: m.sockets.size > 0, away: m.away }));
 }
 
 export class Rooms {

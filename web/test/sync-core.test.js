@@ -368,7 +368,7 @@ test('switching video here asks the room to load it, without going back to the o
   world.player.position = 0;
   world.controller.requestLoad('youtube', 'other', 0);
   world.run(2000);
-  assert.deepEqual(world.requests(), [{ action: 'load', mediaType: 'youtube', mediaId: 'other', position: 0 }]);
+  assert.deepEqual(world.requests(), [{ action: 'load', mediaType: 'youtube', mediaId: 'other', position: 0, how: 'picked' }]);
   assert.equal(world.player.count('load'), 0); // not sent back to 'vid'
   assert.equal(world.events('buffer:end'), 1); // ready, since it plays
 

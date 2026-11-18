@@ -3,6 +3,13 @@
 
 export type MediaType = 'youtube' | 'local';
 
+/**
+ * How the media now loaded came to be playing: someone picked it, YouTube's
+ * autoplay moved on to it on someone's side, or it was next in the queue.
+ */
+export type LoadedHow = 'picked' | 'autoplay' | 'queue';
+const LOADED_HOW: readonly string[] = ['picked', 'autoplay', 'queue'];
+
 /** The single source of truth for what a room is playing. */
 export type RoomState = {
   mediaType: MediaType | null;
@@ -19,6 +26,13 @@ export type RoomState = {
   version: number;
   updatedBy: string; // client id
   /**
+   * Who chose the media now loaded (client id): who picked it, on whose side
+   * YouTube autoplayed it, or who added it to the queue. Null with nothing loaded.
+   * Unlike `updatedBy`, pausing and seeking don't change it.
+   */
+  loadedBy: string | null;
+  loadedHow: LoadedHow | null;
+  /**
    * Members who are loading or buffering. While anyone is listed the room
    * holds still at `position`, whatever `isPlaying` says.
    */
@@ -31,12 +45,14 @@ export type StateRequest = {
   mediaType?: MediaType;
   mediaId?: string;
   mediaTitle?: string;
+  /** With 'load': 'autoplay' if YouTube moved on by itself, not the person. */
+  how?: 'picked' | 'autoplay';
 };
 
 export function emptyState(now: number): RoomState {
   return {
     mediaType: null, mediaId: null, mediaTitle: null, isPlaying: false, position: 0,
-    playbackRate: 1, updatedAt: now, version: 0, updatedBy: '', waitingFor: [],
+    playbackRate: 1, updatedAt: now, version: 0, updatedBy: '', loadedBy: null, loadedHow: null, waitingFor: [],
   };
 }
 
@@ -76,6 +92,7 @@ export function applyRequest(
       ...state, ...stamp,
       mediaType: request.mediaType, mediaId: request.mediaId, mediaTitle: title,
       isPlaying: true, position: request.position ?? 0, playbackRate: 1,
+      loadedBy: clientId, loadedHow: request.how === 'autoplay' ? 'autoplay' : 'picked',
       waitingFor: [...members],
     };
   }
@@ -140,6 +157,8 @@ export function restoredState(info: unknown, now: number): RoomState {
     mediaTitle: typeof i.mediaTitle === 'string' ? i.mediaTitle.slice(0, 300) : null,
     isPlaying: i.isPlaying === true,
     position: validPosition(i.position) ? i.position : 0,
+    loadedBy: typeof i.loadedBy === 'string' ? i.loadedBy.slice(0, 64) : null,
+    loadedHow: typeof i.loadedHow === 'string' && LOADED_HOW.includes(i.loadedHow) ? i.loadedHow as LoadedHow : null,
     version: 1,
   };
 }

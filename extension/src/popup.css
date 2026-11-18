@@ -10,6 +10,7 @@
   --accent-2: #ffb347;
   --error: #ff7a7a;
   --online: #3ddc84;
+  --away: #f5c542;
 }
 
 * { box-sizing: border-box; }
@@ -30,6 +31,7 @@ h1 { margin: 0; font-size: 17px; font-weight: 650; }
 section { display: flex; flex-direction: column; gap: 10px; }
 p { margin: 0; }
 .hint { color: var(--muted); font-size: 12.5px; }
+.hint:empty { display: none; }
 .message { margin-top: 10px; color: var(--error); font-size: 13px; }
 .message:empty { display: none; }
 
@@ -88,7 +90,23 @@ input:focus { outline: 2px solid var(--accent-2); outline-offset: -1px; }
   background: var(--muted);
   vertical-align: 1px;
 }
-#partner.online::before { background: var(--online); }
+#partner.here::before { background: var(--online); }
+#partner.away::before { background: var(--away); }
+#away.on { background: var(--away); color: #160a05; border-color: transparent; }
+
+.chat { display: flex; flex-direction: column; gap: 6px; }
+.log {
+  height: 160px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.msg { margin: 0 0 5px; overflow-wrap: anywhere; }
+.msg b { margin-right: 6px; color: var(--accent-2); }
+.msg.mine b { color: var(--muted); }
+#say-text { flex: 1; min-width: 0; }
 
 details { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 summary { color: var(--muted); font-size: 12.5px; cursor: pointer; margin-bottom: 8px; }

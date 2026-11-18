@@ -652,6 +652,7 @@ body.together-open #page { display: none; }
 .tg-person i, .tg-conn i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 7px; }
 .tg-person.online { color: var(--text); }
 .tg-person.online i, .tg-conn.online i { background: var(--good); }
+.tg-person.away i { background: #f5c542; }
 .tg-conn { color: var(--muted); font-size: 14px; margin-left: auto; }
 .tg-conn.reconnecting i, .tg-conn.connecting i { background: var(--accent-2); }
 

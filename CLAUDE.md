@@ -77,7 +77,12 @@ properties).
   `<html>` plus a synchronous event.
 - `youtube-page.js`: pure, tested. Which pages are followed (an allow-list),
   and `/@handle` to `/channel/<id>` (YouTube reloads the tab for `/@handle`).
-- `popup.*`: create/join/leave and settings; it messages the active tab.
+- `popup.*`: create/join/leave, "I'm away", a small chat (the last 50
+  messages, sent through the tab) and settings; it messages the active tab.
+- The badge (bottom right, in a shadow root) has a 💬 panel: who's here or
+  away, chat, reactions (they rise from the badge, beside the player, never
+  over it) and the away button. Its text box stops key events so YouTube's
+  shortcuts don't fire while typing. Chat is kept per tab (sessionStorage).
 - Browsing: leaving the room's video pauses it for both; while browsing the
   controller isn't fed and room states are held (`T.held`) unless they bring
   a new video. `page:send` / `page` relay pages (docs/protocol.md).
@@ -94,24 +99,28 @@ properties).
    (loaded at run time). `fingerprint.ts` matches files; `positionEstimator.ts`
    smooths VLC's stepped position. Measured ~0.1 s apart on one machine.
 5. Done: shared YouTube queue (several links, playlist links, auto-advance).
-6. Done: packaging (scripts/package.sh). The Windows zip is unverified.
+6. Done: packaging (scripts/package.sh). The owner ran the Windows zip on Windows: it works.
 7. Done: rooms are rebuilt after a server restart (clients send `restore`
    on rejoin); closing the tab shows you offline (page check-in, see
    docs/protocol.md).
 8. Done: browser extension for watching on youtube.com itself (both on
    their own accounts; search, channels and video picks are followed).
    Tested headless in Firefox and Brave, and Firefox with Brave in one room.
-   Not yet tried by real people, or with a non-Premium account (ads count
-   as buffering). Firefox needs it signed (AMO, unlisted) to stay installed.
+   Ads (non-Premium) work: they count as buffering. Firefox needs it signed (AMO, unlisted) to stay installed.
 9. Done: sync server deployed on Render's free plan at
    https://tandem-sync-a3pn.onrender.com (sleeps after 15 idle minutes,
    up to ~1 minute to wake; the owner is fine with that). Extension zips
    for friends: `TANDEM_SYNC_SERVER=https://tandem-sync-a3pn.onrender.com
    scripts/package.sh`. The owner reports it working.
-10. Next: test the Windows package and ads/Premium on real machines,
-   chat and reactions UI (reactions beside the YouTube player, never over
-   it), partner connection quality, GitHub Actions for tests and releases,
-   optional YouTube search (needs a YouTube Data API key).
+10. In progress: chat, reactions and an "I'm away" (AFK) status in the
+   extension (the badge's 💬 panel; away also in the popup, and shown on
+   Tandem's page). The room also records who chose the current video and
+   how (picked, YouTube autoplay on someone's side, or the queue), shown in
+   the badge, popup and Tandem's page. Server and rendering checked; not
+   yet tried on youtube.com by real people.
+11. Next: chat and reactions on Tandem's own page, partner connection
+   quality, GitHub Actions for tests and releases, optional YouTube search
+   (needs a YouTube Data API key).
 
 ## Decisions
 

@@ -180,3 +180,22 @@ test('a restore with bad or missing media gives an empty room', async () => {
   const odd = restoredState({ mediaType: 'local', mediaId: 'v1.x', position: -4, isPlaying: 'yes' }, T0);
   assert.deepEqual([odd.position, odd.isPlaying], [0, false]);
 });
+
+test('a load records who chose the video and how; pausing and seeking keep it', async () => {
+  const picked = playing();
+  assert.deepEqual([picked.loadedBy, picked.loadedHow], [ME, 'picked']);
+  const paused = applyRequest(picked, { action: 'pause', position: 3 }, PARTNER, BOTH, T0 + 3000)!;
+  assert.deepEqual([paused.updatedBy, paused.loadedBy, paused.loadedHow], [PARTNER, ME, 'picked']);
+
+  const auto = applyRequest(paused, { action: 'load', mediaType: 'youtube', mediaId: 'next', how: 'autoplay' }, PARTNER, BOTH, T0 + 4000)!;
+  assert.deepEqual([auto.loadedBy, auto.loadedHow], [PARTNER, 'autoplay']);
+  // Only 'autoplay' is taken from a client; anything else counts as a pick.
+  const odd = applyRequest(auto, { action: 'load', mediaType: 'youtube', mediaId: 'x', how: 'queue' as any }, ME, BOTH, T0 + 5000)!;
+  assert.equal(odd.loadedHow, 'picked');
+
+  const { restoredState } = await import('../src/room.ts');
+  const back = restoredState({ mediaType: 'youtube', mediaId: 'vid', loadedBy: PARTNER, loadedHow: 'autoplay' }, T0);
+  assert.deepEqual([back.loadedBy, back.loadedHow], [PARTNER, 'autoplay']);
+  const junk = restoredState({ mediaType: 'youtube', mediaId: 'vid', loadedBy: 5, loadedHow: 'magic' }, T0);
+  assert.deepEqual([junk.loadedBy, junk.loadedHow], [null, null]);
+});

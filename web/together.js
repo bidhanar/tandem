@@ -124,6 +124,7 @@ async function connect() {
   });
   socket.on('member:joined', ({ members }) => membersChanged(members, 'joined'));
   socket.on('member:left', ({ members }) => membersChanged(members, 'left'));
+  socket.on('member:changed', ({ members }) => membersChanged(members, 'changed'));
 
   T.timers.push(setInterval(() => { if (socket.connected) syncClock(); }, SYNC_CONFIG.clockResyncMs));
 
@@ -199,6 +200,9 @@ function membersChanged(members, what) {
     const was = before.get(member.id);
     if (what === 'joined' && member.online && !was?.online) notify(`${member.name} joined`);
     if (what === 'left' && !member.online && was?.online) notify(`${member.name} went offline`);
+    if (what === 'changed' && member.online && was && Boolean(was.away) !== Boolean(member.away)) {
+      notify(member.away ? `${member.name} is away` : `${member.name} is back`);
+    }
   }
   if (what === 'left' && members.length < before.size) notify('Your partner left the room');
   drawPeople();
@@ -501,7 +505,11 @@ function drawPeople() {
   if (!box || !T.room) return;
   const others = T.room.members.filter((m) => m.id !== T.room.you);
   box.innerHTML = others.length
-    ? others.map((m) => `<span class="tg-person ${m.online ? 'online' : ''}"><i></i>${esc(m.name)} ${m.online ? 'is here' : 'is offline'}</span>`).join('')
+    ? others.map((m) => {
+      // Someone on the browser extension can say they're away (AFK).
+      const presence = !m.online ? 'offline' : m.away ? 'away' : 'here';
+      return `<span class="tg-person ${m.online ? 'online' : ''} ${presence}"><i></i>${esc(m.name)} is ${presence}</span>`;
+    }).join('')
     : '<span class="tg-person"><i></i>Waiting for your partner to join…</span>';
 }
 
@@ -517,7 +525,19 @@ function drawNowPlaying() {
   const box = $('#tg-now');
   if (!box) return;
   const state = T.state;
-  box.textContent = state?.mediaType === 'youtube' && state.mediaId ? (titleOf(state.mediaId) ?? '') : '';
+  const title = state?.mediaType === 'youtube' && state.mediaId ? (titleOf(state.mediaId) ?? '') : '';
+  const chosen = chosenBy(state);
+  box.textContent = title && chosen ? `${title} · ${chosen}` : title;
+}
+
+/** Who chose the room's video, in words: "Ben picked it", "YouTube autoplayed it on Ben's side", … */
+function chosenBy(state) {
+  if (!state?.mediaId || !state.loadedBy || !T.room) return '';
+  const you = state.loadedBy === T.room.you;
+  const name = you ? 'you' : T.room.members.find((m) => m.id === state.loadedBy)?.name ?? 'someone who left';
+  if (state.loadedHow === 'autoplay') return `YouTube autoplayed it ${you ? 'on your side' : `on ${name}'s side`}`;
+  if (state.loadedHow === 'queue') return `next in the queue, added by ${name}`;
+  return `${you ? 'You' : name} picked it`;
 }
 
 /** A long playlist isn't drawn (or its titles looked up) all at once. */
