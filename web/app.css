@@ -705,5 +705,38 @@ body.together-open #page { display: none; }
 .tg-queue-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tg-queue-text span { color: var(--muted); font-size: 13px; }
 #together.docked .tg-now, #together.docked .tg-queue, #together.docked .tg-local { display: none; }
+
+/* The chat column beside the player. On narrow screens it goes below. */
+#together:not(.docked) .tg-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { #together:not(.docked) .tg-body { grid-template-columns: 1fr; } }
+#together.docked .tg-side { display: none; }
+.tg-side { position: relative; display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tg-side-people { display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
+.tg-side-people small { color: var(--faint); }
+.tg-log { height: 300px; overflow-y: auto; padding-right: 4px; }
+.tg-msg { margin: 0 0 6px; overflow-wrap: anywhere; }
+.tg-msg b { margin-right: 6px; color: var(--accent-2); }
+.tg-msg.mine b { color: var(--muted); }
+.tg-typing { min-height: 1.2em; color: var(--muted); font-size: 13px; font-style: italic; }
+.tg-reacts { display: flex; justify-content: space-between; }
+.tg-reacts button { padding: 3px 6px; background: none; border: 0; border-radius: 8px; font-size: 20px; cursor: pointer; }
+.tg-reacts button:hover { background: var(--surface-3); }
+.tg-say { display: flex; gap: 8px; }
+.tg-say .input { flex: 1; min-width: 0; width: auto; }
+.tg-check { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: 13px; cursor: pointer; }
+.tg-check input { margin-top: 3px; accent-color: var(--accent-2); }
+.tg-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tg-status [hidden] { display: none; }
+.tg-floats { position: absolute; inset: 0; pointer-events: none; }
+.tg-float { position: absolute; bottom: 120px; display: flex; flex-direction: column; align-items: center; animation: tg-rise 2.6s ease-out forwards; }
+.tg-float b { font-size: 32px; line-height: 1.1; }
+.tg-float small { padding: 0 5px; background: rgba(14, 14, 18, .85); border-radius: 6px; font-size: 11px; }
+@keyframes tg-rise {
+  0% { transform: translateY(0) scale(.6); opacity: 0; }
+  12% { transform: translateY(-12px) scale(1); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateY(-160px); opacity: 0; }
+}
 /* A player used only to read a playlist's contents; it never plays. */
 .tg-scratch { position: fixed; left: -9999px; top: 0; width: 200px; height: 200px; opacity: 0; pointer-events: none; }

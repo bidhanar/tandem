@@ -16,6 +16,18 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const notify = (message, kind) => window.toast?.(message, kind);
 
+/** Reactions offered beside the chat. */
+const REACTIONS = ['👍', '😂', '😮', '😢', '❤️', '🔥'];
+const CHAT_KEEP = 100;
+/** Your connection and sync go to the others this often. */
+const STATS_MS = 5000;
+const STATS_STALE_MS = 16_000;
+const SLOW_RTT_MS = 400;
+const TYPING_SEND_MS = 2000;
+const TYPING_SHOW_MS = 3500;
+/** Drift shown as "in sync" next to someone's name. */
+const IN_SYNC = 0.25;
+
 const remember = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },
   set(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } },
@@ -50,7 +62,20 @@ const T = {
   controller: null,
   yt: null, // the YT.Player
   ytReady: false,
+  options: { pauseOnAway: true }, // the room's options (docs/protocol.md)
+  chat: [], // { from, name, text, at }, oldest first
+  unread: 0, // messages that came while you weren't looking (shown in the tab's title)
+  typing: new Map(), // client id -> when they were last said to be typing
+  lastTypingSent: 0,
+  stats: new Map(), // client id -> { rtt, drift, at }, yours included
   timers: [],
+};
+
+/** Chat survives a reload of the page, like the room does. */
+const chatStore = {
+  load() { try { return JSON.parse(sessionStorage.getItem('tandem.chat')) ?? []; } catch { return []; } },
+  save(chat) { try { sessionStorage.setItem('tandem.chat', JSON.stringify(chat)); } catch { /* private mode */ } },
+  clear() { try { sessionStorage.removeItem('tandem.chat'); } catch { /* private mode */ } },
 };
 
 const serverNow = () => performance.now() + T.clockOffset;
@@ -125,6 +150,17 @@ async function connect() {
   socket.on('member:joined', ({ members }) => membersChanged(members, 'joined'));
   socket.on('member:left', ({ members }) => membersChanged(members, 'left'));
   socket.on('member:changed', ({ members }) => membersChanged(members, 'changed'));
+  socket.on('options:changed', ({ options }) => {
+    T.options = options;
+    drawOptions();
+  });
+  socket.on('chat:message', chatMessage);
+  socket.on('reaction', showReaction);
+  socket.on('typing', someoneTyping);
+  socket.on('stats', ({ from, ...stats }) => {
+    T.stats.set(from, { ...T.stats.get(from), ...stats, at: performance.now() });
+    drawSidePeople();
+  });
 
   T.timers.push(setInterval(() => { if (socket.connected) syncClock(); }, SYNC_CONFIG.clockResyncMs));
 
@@ -145,7 +181,7 @@ async function enterRoom(event, payload, rejoining = false) {
   try {
     await connect();
     // Coming back to a room: bring what we know, in case the server lost it.
-    const restore = rejoining ? { restore: restoreInfo(T.state, T.queue, serverNow()) } : {};
+    const restore = rejoining ? { restore: restoreInfo(T.state, T.queue, serverNow(), T.options) } : {};
     answer = await ask(event, { ...payload, ...restore, clientId: clientId(), name: T.name });
   } catch {
     disconnect();
@@ -165,10 +201,15 @@ async function enterRoom(event, payload, rejoining = false) {
   // The local program follows the same room, so it can keep VLC in step.
   tellLocal('join', localJoinDetails());
   if (fresh) {
+    T.chat = rejoining ? chatStore.load() : [];
+    if (!rejoining) chatStore.clear();
     drawRoom();
     startController();
   }
   T.queue = answer.room.queue ?? [];
+  T.options = answer.room.options ?? T.options;
+  drawOptions();
+  drawChat();
   drawPeople();
   drawQueue();
   applyState(answer.room.state, true);
@@ -183,6 +224,12 @@ function leaveRoom() {
   T.room = null;
   T.state = null;
   T.queue = [];
+  T.chat = [];
+  T.unread = 0;
+  T.typing.clear();
+  T.stats.clear();
+  chatStore.clear();
+  markTitle();
   T.controller = null;
   T.yt?.destroy?.();
   T.yt = null;
@@ -206,6 +253,125 @@ function membersChanged(members, what) {
   }
   if (what === 'left' && members.length < before.size) notify('Your partner left the room');
   drawPeople();
+  drawSidePeople();
+  drawStatus();
+}
+
+// ---------- Chat, reactions and connection quality ----------
+
+/** Whether you can see the chat right now (on the Watch Together page, in a visible tab). */
+const chatInView = () => T.onPage && !document.hidden;
+
+function chatMessage(message) {
+  if (!T.room) return;
+  T.chat.push(message);
+  T.chat.splice(0, T.chat.length - CHAT_KEEP);
+  chatStore.save(T.chat);
+  T.typing.delete(message.from);
+  if (message.from !== T.room.you && !chatInView()) {
+    T.unread += 1;
+    if (!T.onPage) notify(`${message.name}: ${message.text}`);
+  }
+  drawChat();
+  markTitle();
+}
+
+/** Unread messages at the front of the tab's title: "💬2 · Tandem". */
+const TITLE_MARK = /^💬\d+ · /;
+function markTitle() {
+  if (chatInView()) T.unread = 0;
+  const plain = document.title.replace(TITLE_MARK, '');
+  const wanted = T.room && T.unread ? `💬${T.unread} · ${plain}` : plain;
+  if (document.title !== wanted) document.title = wanted;
+}
+
+function typing() {
+  const now = performance.now();
+  if (!T.socket?.connected || now - T.lastTypingSent < TYPING_SEND_MS) return;
+  T.lastTypingSent = now;
+  T.socket.emit('chat:typing');
+}
+
+function someoneTyping({ from }) {
+  if (!T.room || from === T.room.you) return;
+  T.typing.set(from, performance.now());
+  drawTyping();
+  setTimeout(drawTyping, TYPING_SHOW_MS + 100);
+}
+
+/** A reaction rises in the chat column, beside the player (never over it). */
+function showReaction({ from, emoji }) {
+  if (!T.room || typeof emoji !== 'string') return;
+  const name = from === T.room.you ? null : T.room.members.find((m) => m.id === from)?.name;
+  const floats = $('#tg-floats');
+  if (!T.onPage || !floats) {
+    if (name) notify(`${name}: ${emoji}`);
+    return;
+  }
+  if (floats.children.length >= 12) floats.firstChild.remove();
+  const float = document.createElement('div');
+  float.className = 'tg-float';
+  const face = document.createElement('b');
+  face.textContent = emoji;
+  float.append(face);
+  if (name) {
+    const label = document.createElement('small');
+    label.textContent = name;
+    float.append(label);
+  }
+  float.style.left = `${10 + Math.round(Math.random() * 70)}%`;
+  floats.append(float);
+  setTimeout(() => float.remove(), 2700);
+}
+
+/** Every STATS_MS: the round trip to the server and our drift, for the others to see. */
+async function sendStats() {
+  if (!T.room || !T.socket?.connected) return;
+  const t0 = performance.now();
+  try {
+    await ask('time:ping', { t0 });
+  } catch {
+    return;
+  }
+  const rtt = Math.round(performance.now() - t0);
+  const state = T.state;
+  let drift = null;
+  if (state && isRolling(state, serverNow())) drift = state.mediaType === 'local' ? T.local?.drift ?? null : T.controller?.drift() ?? null;
+  T.socket.emit('stats:send', { rtt, drift });
+  T.stats.set(T.room.you, { rtt, drift, at: performance.now() });
+  drawSidePeople();
+}
+
+/** "90 ms · in sync", "650 ms (slow) · 0.4 s behind", or '' without a recent report. */
+function qualityOf(id) {
+  const s = T.stats.get(id);
+  if (!s || performance.now() - s.at > STATS_STALE_MS) return '';
+  const parts = [];
+  if (typeof s.rtt === 'number') parts.push(`${s.rtt} ms${s.rtt > SLOW_RTT_MS ? ' (slow)' : ''}`);
+  if (typeof s.drift === 'number') {
+    parts.push(Math.abs(s.drift) < IN_SYNC ? 'in sync' : `${Math.abs(s.drift).toFixed(1)} s ${s.drift > 0 ? 'ahead' : 'behind'}`);
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * Why the room was paused for someone, and whether to offer "Resume": once
+ * they're back (or gone for good), not while they're still away.
+ */
+function pausedReason(state) {
+  const id = state.pausedFor;
+  if (id === T.room.you) return { text: 'you were away', resume: true };
+  const m = T.room.members.find((member) => member.id === id);
+  if (!m) return { text: 'your partner left', resume: true };
+  if (!m.online) return { text: `${m.name} went offline`, resume: false };
+  if (m.away) return { text: `${m.name} stepped away`, resume: false };
+  return { text: `${m.name} is back`, resume: true };
+}
+
+/** A link for someone with Tandem's browser extension: opening it joins this room on youtube.com. */
+function inviteLink() {
+  const video = T.state?.mediaType === 'youtube' && T.state.mediaId ? `watch?v=${T.state.mediaId}` : '';
+  return `https://www.youtube.com/${video}#tandem=${T.room.code}`;
 }
 
 // ---------- The local program (VLC) ----------
@@ -252,6 +418,8 @@ function startController() {
   // Keep telling the local program we're here; when this tab closes it stops.
   T.timers.push(setInterval(() => { if (T.room) tellLocal('join', localJoinDetails()); }, 15_000));
   T.timers.push(setInterval(() => T.controller?.tick(), SYNC_CONFIG.tickMs));
+  T.timers.push(setInterval(sendStats, STATS_MS));
+  T.timers.push(setInterval(markTitle, 1000));
 }
 
 function applyState(state, rejoined = false) {
@@ -473,6 +641,8 @@ function drawRoom() {
           <span class="tg-label">Room code</span>
           <b class="tg-code">${esc(T.room.code)}</b>
           <button class="btn btn-secondary tg-small" data-tg="copy">Copy</button>
+          <button class="btn btn-outline tg-small" data-tg="invite"
+            title="For someone with Tandem's browser extension: opening the link joins this room on youtube.com">Copy invite link</button>
         </div>
         <div class="tg-people" id="tg-people"></div>
         <div class="tg-conn" id="tg-conn"></div>
@@ -484,6 +654,8 @@ function drawRoom() {
         <button class="btn btn-secondary" type="submit" data-mode="queue">Add to queue</button>
       </form>
       <p class="tg-error" id="tg-message" role="alert"></p>
+      <div class="tg-body">
+      <div class="tg-main">
       <div class="tg-stage">
         <div class="tg-player">
           <div id="tg-yt"></div>
@@ -494,10 +666,89 @@ function drawRoom() {
         <a class="tg-back" href="#/together">Back to the room</a>
       </div>
       <div class="tg-now" id="tg-now"></div>
-      <div class="tg-status" id="tg-status"></div>
+      <div class="tg-status"><span id="tg-status"></span>
+        <button class="btn btn-play tg-small" data-tg="resume" id="tg-resume" hidden>▶ Resume</button></div>
       <div class="tg-queue" id="tg-queue"></div>
+      </div>
+      <aside class="tg-side">
+        <div class="tg-floats" id="tg-floats"></div>
+        <div class="tg-side-people" id="tg-side-people"></div>
+        <div class="tg-log" id="tg-log"></div>
+        <div class="tg-typing" id="tg-typing"></div>
+        <div class="tg-reacts">${REACTIONS.map((e) => `<button type="button" data-tg="react" data-emoji="${e}" title="Send ${e} to everyone">${e}</button>`).join('')}</div>
+        <form class="tg-say" data-tg-form="say">
+          <input class="input" name="text" maxlength="500" placeholder="Say something" autocomplete="off">
+          <button class="btn btn-secondary tg-small" type="submit">Send</button>
+        </form>
+        <label class="tg-check"><input type="checkbox" data-tg-option="pauseOnAway">
+          Pause for everyone when someone steps away or leaves</label>
+      </aside>
+      </div>
     </div>`;
   drawConnection();
+  drawOptions();
+  drawChat();
+  drawSidePeople();
+}
+
+/** The chat column's list of people, with how their connection and sync are doing. */
+function drawSidePeople() {
+  const box = $('#tg-side-people');
+  if (!box || !T.room) return;
+  box.replaceChildren(...T.room.members.map((m) => {
+    const presence = !m.online ? 'offline' : m.away ? 'away' : 'here';
+    const line = document.createElement('div');
+    line.className = `tg-person ${m.online ? 'online' : ''} ${presence}`;
+    line.append(document.createElement('i'), `${m.name}${m.id === T.room.you ? ' (you)' : ''} · ${presence}`);
+    const quality = m.online ? qualityOf(m.id) : '';
+    if (quality) {
+      const small = document.createElement('small');
+      small.textContent = ` · ${quality}`;
+      line.append(small);
+    }
+    return line;
+  }));
+}
+
+/** The messages. Plain text only: they come from other people. */
+function drawChat() {
+  const log = $('#tg-log');
+  if (!log || !T.room) return;
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  if (!T.chat.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = 'Messages and reactions go to everyone in the room.';
+    log.replaceChildren(empty);
+  } else {
+    log.replaceChildren(...T.chat.map((m) => {
+      const line = document.createElement('p');
+      line.className = m.from === T.room.you ? 'tg-msg mine' : 'tg-msg';
+      line.title = new Date(m.at).toLocaleTimeString();
+      const who = document.createElement('b');
+      who.textContent = m.from === T.room.you ? 'You' : m.name;
+      line.append(who, m.text);
+      return line;
+    }));
+  }
+  if (atBottom) log.scrollTop = log.scrollHeight;
+  drawTyping();
+}
+
+function drawTyping() {
+  const box = $('#tg-typing');
+  if (!box || !T.room) return;
+  const now = performance.now();
+  const names = [...T.typing]
+    .filter(([, at]) => now - at < TYPING_SHOW_MS)
+    .map(([id]) => T.room.members.find((m) => m.id === id)?.name)
+    .filter(Boolean);
+  box.textContent = names.length ? `${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} typing…` : '';
+}
+
+function drawOptions() {
+  const box = root.querySelector('[data-tg-option="pauseOnAway"]');
+  if (box) box.checked = T.options.pauseOnAway;
 }
 
 function drawPeople() {
@@ -637,11 +888,15 @@ function drawStatus() {
       const sync = drift == null ? '' : Math.abs(drift) < SYNC_CONFIG.youtube.seekThreshold
         ? ' · in sync' : ` · ${Math.abs(drift).toFixed(1)} s ${drift > 0 ? 'ahead' : 'behind'}, catching up`;
       text = `Playing · ${at}${sync}`;
+    } else if (!state.isPlaying && state.pausedFor) {
+      text = `Paused at ${at} · ${pausedReason(state).text}`;
     } else {
       text = `Paused at ${at}`;
     }
   }
   if (box.textContent !== text) box.textContent = text;
+  const resume = $('#tg-resume');
+  if (resume) resume.hidden = !(state?.mediaId && !state.isPlaying && state.pausedFor && pausedReason(state).resume);
 }
 
 /** Full page, docked in the corner, or hidden, depending on where you are. */
@@ -675,6 +930,11 @@ root.addEventListener('click', (event) => {
     case 'queue-clear': return void T.socket?.emit('queue:clear');
     case 'use-file': return void tellLocal('use', { file: button.dataset.file }).then(watchLocal);
     case 'reopen': return void tellLocal('reopen').then(watchLocal);
+    case 'resume': return void T.socket?.emit('state:request', { action: 'play' });
+    case 'react': return void T.socket?.emit('reaction:send', { emoji: button.dataset.emoji });
+    case 'invite':
+      return void navigator.clipboard?.writeText(inviteLink())
+        .then(() => notify('Invite link copied: for someone with the Tandem extension'), () => notify('Copy failed', 'error'));
     case 'copy':
       return void navigator.clipboard?.writeText(T.room.code)
         .then(() => notify('Room code copied'), () => notify('Copy failed; select the code instead', 'error'));
@@ -682,9 +942,27 @@ root.addEventListener('click', (event) => {
   }
 });
 
+root.addEventListener('change', (event) => {
+  const option = event.target.closest('[data-tg-option]');
+  if (option) T.socket?.emit('options:set', { [option.dataset.tgOption]: option.checked });
+});
+
+root.addEventListener('input', (event) => {
+  if (event.target.closest('[data-tg-form="say"]')) typing();
+});
+
+document.addEventListener('visibilitychange', markTitle);
+
 root.addEventListener('submit', (event) => {
   event.preventDefault();
   const form = event.target;
+  if (form.dataset.tgForm === 'say') {
+    const text = form.text.value.trim();
+    if (text && T.socket?.connected) {
+      T.socket.emit('chat:send', { text });
+      form.text.value = '';
+    }
+  }
   if (form.dataset.tgForm === 'join') {
     showError('');
     enterRoom('room:join', { code: form.code.value });
@@ -729,6 +1007,7 @@ window.Together = {
       T.profileId = profile.id;
     }
     if (settings?.sync_server) T.serverUrl = settings.sync_server.replace(/\/+$/, '');
+    markTitle(); // back on the page: its messages have been seen
     if (!profileName) return void (root.hidden = true);
 
     if (!T.room && !root.querySelector('.tg-lobby')) drawLobby();

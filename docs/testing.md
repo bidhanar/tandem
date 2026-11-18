@@ -168,6 +168,12 @@ browser asks (in Brave, turn Shields down for youtube.com).
 18. Typing: while A types, B's chat panel and popup say "A is typing…".
 19. Connection: the chat panel and popup show each person's round trip and
     whether they're in sync ("Ben: 96 ms · in sync"), updated every 5 s.
+20. Tandem's page: the room has a chat column beside the player with the
+    same chat, reactions (rising inside the column), "typing…", each
+    person's connection, and the pause option. A message that comes while
+    you're in the library shows as a toast and "💬1 ·" in the tab title.
+    "Copy invite link" gives a youtube.com link for someone with the
+    extension.
 
 ### Automated checks
 
