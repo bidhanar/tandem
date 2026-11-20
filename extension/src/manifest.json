@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tandem",
   "version": "0.1.0",
-  "description": "Watch YouTube together with someone far away: both of you on youtube.com, in step.",
+  "description": "Watch YouTube or listen to YouTube Music together with someone far away: each of you on the site itself, in step.",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": {
     "default_title": "Tandem",
@@ -16,21 +16,21 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*", "https://music.youtube.com/*"],
       "js": ["bridge.js"],
       "world": "MAIN",
       "run_at": "document_start"
     },
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*", "https://music.youtube.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["tandem.js", "youtube-page.js", "defaults.js", "sync-core.js", "sync-config.js", "socket.io.esm.min.js"],
-      "matches": ["https://www.youtube.com/*"]
+      "resources": ["tandem.js", "youtube-page.js", "music-page.js", "defaults.js", "sync-core.js", "sync-config.js", "socket.io.esm.min.js"],
+      "matches": ["https://www.youtube.com/*", "https://music.youtube.com/*"]
     }
   ],
   "minimum_chrome_version": "121",

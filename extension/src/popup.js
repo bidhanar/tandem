@@ -38,7 +38,7 @@ function draw(status) {
     $('#partner').textContent = status.partner;
     $('#partner').className = status.partners; // 'here', 'away' or 'offline': the dot's colour
     $('#line').textContent = status.line;
-    $('#chosen').textContent = status.chosen && `This video: ${status.chosen}`;
+    $('#chosen').textContent = status.chosen && `This ${status.thing ?? 'video'}: ${status.chosen}`;
     away = status.away;
     $('#away').textContent = away ? "I'm back" : "I'm away";
     $('#away').classList.toggle('on', away);
@@ -149,6 +149,10 @@ async function start() {
 
   $('#open-youtube').addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://www.youtube.com/' });
+    window.close();
+  });
+  $('#open-music').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://music.youtube.com/' });
     window.close();
   });
   $('#create').addEventListener('click', async () => {

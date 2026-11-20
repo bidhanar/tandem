@@ -20,7 +20,8 @@ web/      The page (plain JS/CSS, no framework, no build). app.js/app.css are
 server/   Sync server (Node + TypeScript + Socket.IO). room.ts is the pure
           state rules, app.ts the socket wiring, config.ts the timings.
 extension/  Browser extension (Manifest V3, Chrome/Edge/Brave and Firefox
-          128+): watch on youtube.com itself, in step. Plain JS in src/;
+          128+): watch on youtube.com itself, or listen on YouTube Music
+          (music.youtube.com), in step. Plain JS in src/;
           build.mjs copies src/ plus web/sync-core.js, web/sync-config.js
           and the Socket.IO client into dist/, the folder a browser loads.
 scripts/package.sh   builds release/ zips with a bundled Node.js; launchers
@@ -43,7 +44,7 @@ cd server && npm install && npm test   # room state rules
 cd server && npm run simulate          # two simulated people end to end, ~30 s
 cd server && npm start                 # sync server on port 8686
 cd extension && npm install && npm run build   # extension in extension/dist
-cd extension && npm test               # youtube-page.js (which pages are followed)
+cd extension && npm test               # youtube-page.js, music-page.js (which pages are followed)
 ```
 
 Ubuntu's Node package can't run TypeScript directly, so everything is
@@ -96,6 +97,19 @@ properties).
 - Browsing: leaving the room's video pauses it for both; while browsing the
   controller isn't fed and room states are held (`T.held`) unless they bring
   a new video. `page:send` / `page` relay pages (docs/protocol.md).
+- YouTube Music: the same scripts run on music.youtube.com; `tandem.js`
+  branches on `MUSIC`. There the music plays on while you look around, so
+  the song is whatever the player has (`T.track`, from `listen()`), not the
+  address: browsing pauses nothing and nothing is held, and page following
+  only passes pages on. Its app (`<ytmusic-app>`) opens a page in place only
+  from an endpoint (browse id, search, video), which `music-page.js` (pure,
+  tested) makes from the address; channels and albums travel as
+  `/channel/<id>` and `/browse/<MPREb_ id>` (the id is in `history.state`).
+  Its player only takes speeds 0.25, 0.5 … 2, so drift is fixed by seeking
+  (SyncController mode `'youtube'`). It goes straight on to its own next
+  song; when the room's queue has one, the tab reports the end and waits
+  for it. The badge sits 88 px up, above its player bar. Ads show as
+  `ad-showing` on `#movie_player`, as on youtube.com.
 
 ## Plan from here
 
@@ -132,7 +146,16 @@ properties).
    badge), not yet run on youtube.com with these changes.
 11. Done: GitHub Actions (tests on push; release on a v* tag). Not yet run
    on GitHub (nothing is pushed).
-12. Next: one-click installs (Chrome Web Store unlisted, $5; Firefox AMO
+12. Done, waiting for the owner to try: YouTube Music in the extension
+   (music.youtube.com). Checked with two headless Firefoxes (one each,
+   silent): picks, pause, play, ads (the room waits), following Explore,
+   artists and searches while the music plays, a song ending (YouTube
+   Music's next plays for both), the room queue taking over, reload,
+   invite link, the badge above the player bar, and a mixed room with
+   youtube.com. Not checked headless: seeking far (headless stalls) and
+   the song/video switch. A seek that buffers over 0.7 s is undone (the
+   stall report comes first; sync-core, same on youtube.com).
+13. Next: one-click installs (Chrome Web Store unlisted, $5; Firefox AMO
    unlisted signing, wired into release.yml once AMO keys exist), optional
    YouTube search (needs a YouTube Data API key).
 
@@ -142,8 +165,10 @@ properties).
 - Local files play in a VLC window. VLC reports its position in steps of
   250-500 ms, so it is polled every 100 ms and the position is estimated
   from the moments the value changes.
-- YouTube only (no YouTube Music). Never extract streams (no yt-dlp or
-  similar); only the official IFrame player, visible and at least 200x200.
+- Tandem's page: YouTube only (YouTube Music can't be embedded). The
+  extension also runs on music.youtube.com, playing it in its own player.
+  Never extract streams (no yt-dlp or similar); only the official IFrame
+  player, visible and at least 200x200, or the sites' own players.
 - Accepted changes to the spec's sync design: a `waitingFor` list for
   buffering (separate from user pause), buffering debounce, seek-ahead
   compensation for YouTube, two-step rate correction for local files,
@@ -174,7 +199,9 @@ properties).
 - Testing the page for real: headless Firefox with `--remote-debugging-port`
   speaks WebDriver BiDi (Node 22 has a WebSocket client built in). Firefox is
   a snap, so its `--profile` folder must be under `~/snap/firefox/common/`;
-  set `media.autoplay.default` 0 in `user.js`. Use `browser.createUserContext`
+  set `media.autoplay.default` 0 in `user.js`, and `media.volume_scale`
+  "0.0": headless Firefox still plays sound aloud, and tests must be silent
+  (playback goes on as usual). Use `browser.createUserContext`
   to get two tabs with separate storage (two people). Player actions can be
   faked with `iframe.contentWindow.postMessage` of the IFrame API's command
   JSON. A background tab can't start playback, and its timers run once a second.
@@ -197,7 +224,10 @@ properties).
   to script extension pages; install with BiDi `webExtension.install`
   `{type: 'path', path: 'extension/dist'}`, and fix the moz-extension UUID
   with the `extensions.webextensions.uuids` pref. Set `network.lna.enabled`
-  false so youtube.com may reach localhost. Brave: `--headless=new
+  false so youtube.com may reach localhost. The add-on is removed when the
+  BiDi session ends, so do a whole test in one session. Two people need two
+  Firefoxes (own profiles, ports): the client id is in the extension's
+  storage, which user contexts share. Brave: `--headless=new
   --load-extension=... --remote-debugging-port=...` (CDP), Shields off for
   youtube.com via the profile's Preferences (`braveShields` exception,
   setting 2). Drive the popup's messages from the popup page opened in a

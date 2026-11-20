@@ -75,7 +75,7 @@ Questions with an answer use Socket.IO acknowledgements.
 | `queue:clear` | none | none |
 | `queue:play` | `{id}`: play this entry now | none |
 | `media:ended` | `{mediaId}` | none |
-| `page:send` | `{path}`: this tab moved to another youtube.com page | none |
+| `page:send` | `{path}`: this tab moved to another youtube.com (or music.youtube.com) page | none |
 | `chat:send` | `{text}` | none |
 | `reaction:send` | `{emoji}` | none |
 | `options:set` | `{pauseOnAway}` (boolean), for everyone in the room | none; `options:changed` follows |
@@ -172,6 +172,13 @@ again after every join.
   the tab. Videos themselves go through the room state as usual. Leaving a
   video's page pauses it for both (YouTube stops a video when you leave its
   page); picking a video loads it for both.
+  YouTube Music sends its own paths the same way (`/search?q=…`, `/explore`,
+  …; `extension/src/music-page.js`), channels as `/channel/<id>` and albums
+  as `/browse/<album id>`. There the music plays on while you look around,
+  so leaving a song's page pauses nothing. Paths both sites have (`/`,
+  `/channel/…`, `/playlist?list=…`) are followed across the two; the rest
+  only by a tab on the same site. A youtube.com tab doesn't follow while
+  it's on the room's video and the room is playing (leaving would stop it).
 - **Rooms** hold 2 people by default (`MAX_MEMBERS`), have a 6-character
   code from an alphabet without look-alike characters, and are forgotten
   after 10 minutes with nobody connected.

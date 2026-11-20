@@ -69,6 +69,8 @@ test('channel addresses YouTube can only open with a reload are sent by id', () 
 test('invite links', () => {
   assert.equal(inviteLink('K7QPXM', 'dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ#tandem=K7QPXM');
   assert.equal(inviteLink('K7QPXM', null), 'https://www.youtube.com/#tandem=K7QPXM');
+  assert.equal(inviteLink('K7QPXM', 'dQw4w9WgXcQ', 'https://music.youtube.com'), 'https://music.youtube.com/watch?v=dQw4w9WgXcQ#tandem=K7QPXM');
+  assert.equal(inviteLink('K7QPXM', null, 'https://evil.example'), 'https://www.youtube.com/#tandem=K7QPXM');
   assert.equal(inviteCode('#tandem=K7QPXM'), 'K7QPXM');
   assert.equal(inviteCode('#tandem=k7qpxm'), 'K7QPXM');
   assert.equal(inviteCode('#t=10&tandem=K7QPXM'), 'K7QPXM');
@@ -82,6 +84,7 @@ test('the video a link points to', () => {
   assert.equal(videoIdOf('https://youtu.be/dQw4w9WgXcQ?t=5'), 'dQw4w9WgXcQ');
   assert.equal(videoIdOf('https://m.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
   assert.equal(videoIdOf('https://www.youtube.com/shorts/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+  assert.equal(videoIdOf('https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVM1'), 'dQw4w9WgXcQ');
   assert.equal(videoIdOf('https://www.youtube.com/@someone'), null);
   assert.equal(videoIdOf('https://example.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(videoIdOf('not a link'), null);

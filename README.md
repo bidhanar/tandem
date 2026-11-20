@@ -67,6 +67,10 @@ and the other's tab goes to the same page; play, pause and seek stay in
 step. Each of you still sees your own account's recommendations. Only
 YouTube; your own video files still need Tandem's program.
 
+It works the same on YouTube Music (music.youtube.com): a song either of
+you plays, plays for both, and the other's tab follows you around Explore,
+artists, albums, playlists and searches while the music plays on.
+
 Install it in Chrome, Edge or Brave: build it (below) or unzip
 `tandem-extension-<version>.zip`, open `chrome://extensions`, turn on
 Developer mode, press "Load unpacked" and pick the folder. In Firefox (128
@@ -75,10 +79,10 @@ or newer): `about:debugging`, This Firefox, "Load Temporary Add-on", and pick
 closes; to keep it, the zip has to be signed once through a free Mozilla
 add-ons account (it can stay unlisted).
 
-Then open youtube.com, click Tandem's icon in the toolbar, type your name and
-press "Create a room" (if a video is open, it plays for both of you), or type
-your partner's code and press Join. Set the sync server address under
-Settings in that popup. A small badge in the corner of the page shows the
+Then open youtube.com (or music.youtube.com), click Tandem's icon in the
+toolbar, type your name and press "Create a room" (if a video or song is
+open, it plays for both of you), or type your partner's code and press
+Join. Set the sync server address under Settings in that popup. A small badge in the corner of the page shows the
 room code and whether you're in step; click it to make it smaller.
 
 ```sh
@@ -129,7 +133,7 @@ to type it.
 cd local  && npm test                               # library and VLC
 cd web    && npm test                               # sync logic
 cd server && npm test                               # room rules
-cd extension && npm test                            # which youtube.com pages are followed
+cd extension && npm test                            # which youtube.com and YouTube Music pages are followed
 cd server && npm run simulate                       # two simulated people
 cd local  && npm start -- --no-browser --port 8599  # run without opening a tab
 ```

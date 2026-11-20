@@ -11,11 +11,12 @@
     <h1>Tandem</h1>
   </header>
 
-  <!-- This tab isn't a YouTube page Tandem is running in. -->
+  <!-- This tab isn't a YouTube (or YouTube Music) page Tandem is running in. -->
   <section id="elsewhere" hidden>
-    <p>Watch together from a YouTube tab.</p>
+    <p>Watch together from a YouTube tab, or listen together from a YouTube Music tab.</p>
     <button class="btn primary" id="open-youtube">Open YouTube</button>
-    <p class="hint">If YouTube is already open in this tab, reload it.</p>
+    <button class="btn" id="open-music">Open YouTube Music</button>
+    <p class="hint">If one is already open in this tab, reload it.</p>
   </section>
 
   <!-- On YouTube, not in a room. -->
@@ -23,7 +24,7 @@
     <label class="field"><span>Your name</span>
       <input id="name" maxlength="24" placeholder="So your partner knows it's you" autocomplete="off"></label>
     <button class="btn primary" id="create">Create a room</button>
-    <p class="hint">If a video is open, it plays for both of you.</p>
+    <p class="hint">If a video or song is open, it plays for both of you.</p>
     <form id="join-form" class="row">
       <input id="code" maxlength="8" placeholder="Partner's code" autocomplete="off" required>
       <button class="btn" type="submit">Join</button>
@@ -37,7 +38,7 @@
       <b id="room-code"></b>
       <button class="btn small" id="copy">Copy</button>
     </div>
-    <button class="btn" id="invite" title="A youtube.com link that puts whoever opens it (with Tandem installed) in this room">Copy invite link</button>
+    <button class="btn" id="invite" title="A link to this site that puts whoever opens it (with Tandem installed) in this room">Copy invite link</button>
     <p id="partner"></p>
     <p id="line" class="hint"></p>
     <p id="chosen" class="hint"></p>
@@ -62,7 +63,7 @@
         <button class="btn small" id="queue-clear" hidden>Clear</button>
       </div>
       <ol id="queue-list"></ol>
-      <p class="hint">Right-click any YouTube video link and pick "Add to Tandem queue".</p>
+      <p class="hint">Right-click a link to a YouTube video or YouTube Music song and pick "Add to Tandem queue".</p>
     </div>
 
     <label class="check"><input type="checkbox" id="pause-on-away"> Pause for everyone when someone steps away or leaves</label>

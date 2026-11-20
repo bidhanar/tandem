@@ -1,5 +1,5 @@
-// Runs inside youtube.com's own page, where YouTube's player and its
-// in-page navigation can be reached. The rest of the extension runs apart
+// Runs inside youtube.com's own page (or YouTube Music's), where YouTube's
+// player and its in-page navigation can be reached. The rest of the extension runs apart
 // from the page (browsers keep extension code and page code separate), so it
 // asks through here: it puts a command in the data-tandem-command attribute
 // of <html> and fires a 'tandem:command' event. Events run at once, so the
@@ -7,8 +7,10 @@
 //
 // Commands: { do: 'read' } answers what the player is doing, 'page' what page
 // YouTube is showing; 'play', 'pause',
-// 'seek' {seconds}, 'rate' {rate} control it; 'go' {path} opens another
-// youtube.com page the way YouTube's own links do, without reloading the tab.
+// 'seek' {seconds}, 'rate' {rate} control it; 'go' {path, endpoint} opens
+// another page the way YouTube's own links do, without reloading the tab.
+// Both sites use the same player (#movie_player); YouTube Music's app is
+// <ytmusic-app> instead of <ytd-app>.
 
 (() => {
   const root = document.documentElement;
@@ -30,12 +32,20 @@
       state: player.getPlayerState(), // -1 not started, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
       time: player.getCurrentTime() || 0,
       rate: player.getPlaybackRate() || 1,
+      duration: player.getDuration() || 0,
       ad: player.classList.contains('ad-showing'),
     };
   }
 
-  /** The page YouTube is showing: its address, and the channel's id on a channel page. */
+  /**
+   * The page YouTube is showing: its address, and the channel's id on a
+   * channel page. YouTube Music: the address, and the browse id the page was
+   * opened with (a channel's, an album's), which it keeps in the history entry.
+   */
   function page() {
+    if (location.hostname === 'music.youtube.com') {
+      return { url: location.pathname + location.search, browseId: history.state?.command?.browseEndpoint?.browseId ?? null };
+    }
     const data = document.querySelector('ytd-app')?.data;
     return {
       url: data?.endpoint?.commandMetadata?.webCommandMetadata?.url ?? null,
@@ -43,14 +53,15 @@
     };
   }
 
-  function go(path) {
+  /** youtube.com opens a page from its address; YouTube Music needs `endpoint`, what the page is. */
+  function go(path, endpoint) {
     if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return;
-    const app = document.querySelector('ytd-app');
+    const app = document.querySelector('ytd-app, ytmusic-app');
     if (!app) return void location.assign(path); // not the usual site layout: an ordinary page load
     app.dispatchEvent(new CustomEvent('yt-navigate', {
       bubbles: true,
       composed: true,
-      detail: { endpoint: { commandMetadata: { webCommandMetadata: { url: path } } } },
+      detail: { endpoint: endpoint ?? { commandMetadata: { webCommandMetadata: { url: path } } } },
     }));
   }
 
@@ -72,7 +83,7 @@
         case 'pause': player?.pauseVideo(); break;
         case 'seek': player?.seekTo(Number(command.seconds) || 0, true); break;
         case 'rate': player?.setPlaybackRate(Number(command.rate) || 1); break;
-        case 'go': go(command.path); break;
+        case 'go': go(command.path, command.endpoint); break;
         default: break;
       }
     } catch { /* YouTube changed something; the answer stays empty */ }

@@ -175,13 +175,51 @@ browser asks (in Brave, turn Shields down for youtube.com).
     "Copy invite link" gives a youtube.com link for someone with the
     extension.
 
+## Browser extension (YouTube Music)
+
+The same extension, on music.youtube.com. Reload any YouTube Music tab that
+was open before installing or updating it.
+
+1. Person A plays a song on music.youtube.com, clicks Tandem's icon and
+   presses "Create a room". The badge sits above YouTube Music's player bar
+   at the bottom, not over its buttons.
+2. Person B, on any YouTube Music page, joins with the code. B's player
+   plays A's song, from where A is. The badges say "in sync" (on YouTube
+   Music that means within half a second).
+3. Pause, play and seek on either side, with the player bar's buttons: the
+   other follows.
+4. A goes to Explore, an artist, an album, a playlist and a search: B's tab
+   follows each time, and the music keeps playing for both.
+5. B plays a song from a list (search results, an album): it plays for both,
+   and A's badge says "B picked it". Also try ⏭ (next) in the player bar.
+6. Let a song end without touching anything: YouTube Music's next song plays
+   for both, and the badge says "YouTube autoplayed it on …'s side".
+7. Queue: right-click a song's title (a link) and pick "Add to Tandem
+   queue". When the current song ends, the queued one plays for both, not
+   YouTube Music's next.
+8. Free accounts: an ad before a song makes the other person wait (the
+   badge says "Waiting for … to load"), then both start together.
+9. Keep the YouTube Music tab in the background for a few minutes while
+   listening: it stays in step, and a pause from the other side still
+   pauses it.
+10. Reload B's tab: B stays in the room, and the song comes back.
+11. Invite link: "Copy invite link" in the popup gives a music.youtube.com
+    link; opened in B's browser it joins the room.
+12. Mixed: A on youtube.com and B on YouTube Music in one room. A video A
+    picks plays in B's YouTube Music, and a song B picks plays on A's
+    youtube.com. A's search isn't followed (it's a youtube.com page), but
+    the home page and channels are. While the room plays, B looking around
+    YouTube Music doesn't take A away from the video.
+13. Song and video: switch a song to its video (the Song/Video switch at the
+    top, with Premium): the other person switches too, at the same place.
+
 ### Automated checks
 
 ```sh
 cd server && npm test          # room state rules
 cd server && npm run simulate  # two simulated people, about 30 seconds
 cd web && npm test             # sync logic
-cd extension && npm test       # which youtube.com pages are followed
+cd extension && npm test       # which youtube.com and YouTube Music pages are followed
 ```
 
 Report for each step: worked / didn't, and what you saw.

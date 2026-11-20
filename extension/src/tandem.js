@@ -1,6 +1,6 @@
-// Tandem on youtube.com: keeps this tab in step with your partner's.
+// Tandem on youtube.com and YouTube Music: keeps this tab in step with your partner's.
 //
-// content.js loads this into every youtube.com tab. A tab joins a room when
+// content.js loads this into every youtube.com and music.youtube.com tab. A tab joins a room when
 // you press Create or Join in the extension's popup. The room is remembered
 // for that tab only (sessionStorage), so reloading keeps you in it and your
 // other YouTube tabs stay out of it.
@@ -14,13 +14,25 @@
 //   video for another page pauses it for both of you, because YouTube stops a
 //   video when you leave its page. Picking a video plays it for both.
 //
+//
+// On YouTube Music (music.youtube.com) the same, except that the music plays
+// on while you look around: the song is whatever its player has, not the
+// page's address. Picking a song plays it for both; looking around takes
+// your partner's tab along but doesn't pause anything.
+//
 // YouTube's player is reached through bridge.js, which runs in the page itself.
 
 import { io } from './socket.io.esm.min.js';
 import { SYNC_CONFIG } from './sync-config.js';
 import { expectedPosition, bestOffset, isRolling, restoreInfo, SyncController } from './sync-core.js';
 import { inviteCode, inviteLink, pageOf, samePage, shareablePath, videoIdOf, watchPath } from './youtube-page.js';
+import { musicEndpoint, musicPageOf, musicShareablePath } from './music-page.js';
 import { DEFAULT_SERVER } from './defaults.js';
+
+/** This tab is YouTube Music, not youtube.com. */
+const MUSIC = location.hostname === 'music.youtube.com';
+/** What is being played, in words. */
+const THING = MUSIC ? 'song' : 'video';
 
 /** How often the player is read. */
 const READ_MS = 250;
@@ -28,8 +40,20 @@ const READ_MS = 250;
 const GOING_MS = 8000;
 /** How long to wait for YouTube to say what a new page is before passing it on. */
 const SHARE_WAIT_MS = 3000;
-/** Drift shown as "in sync" in the status line. */
-const IN_SYNC = 0.25;
+/**
+ * Drift shown as "in sync" in the status line. YouTube Music's player only
+ * takes its few fixed speeds, so drift there is fixed by seeking, and only
+ * beyond the seek threshold.
+ */
+const IN_SYNC = MUSIC ? SYNC_CONFIG.youtube.seekThreshold : 0.25;
+/** A playing video this close to its end (seconds) is ending: what comes next may be autoplay. */
+const ENDING_S = 2;
+/**
+ * YouTube Music goes straight on to its own next song. When the room's queue
+ * has the next one instead, wait this long for it before going back to the
+ * song that ended.
+ */
+const QUEUE_WAIT_MS = 3000;
 /**
  * A move to another video with no click or key press for this long before
  * it, right after the video ended, is YouTube's autoplay, not the person.
@@ -57,7 +81,8 @@ const T = {
   titles: new Map(), // video id -> title (null while being looked up)
   options: { pauseOnAway: true }, // the room's options (see docs/protocol.md)
   controller: null,
-  page: pageOf(location.href), // the youtube.com page this tab shows
+  page: currentPage(), // the page this tab shows
+  track: null, // YouTube Music: the song its player had at the last reading
   goingTo: null, // a page we asked YouTube to open (for the room or the partner), with `at`
   toShare: null, // { page, since }: a page of ours to pass on to the partner
   leftVideo: undefined, // the room's video when we left its page to look around
@@ -126,12 +151,29 @@ function bridge(command) {
   }
 }
 
-/** Opens a youtube.com page in this tab, without reloading it. */
+/** A path on this tab's site, described (see youtube-page.js and music-page.js). */
+const pageAt = (path) => (MUSIC ? musicPageOf(path) : pageOf(path));
+
+/**
+ * The page this tab shows. On YouTube Music, by the address it is sent to
+ * your partner with (a channel by its id, not its handle), so that a page
+ * we were sent to is recognised when it shows up.
+ */
+function currentPage() {
+  if (!MUSIC) return pageOf(location.href);
+  const shown = bridge({ do: 'page' });
+  return musicPageOf(musicShareablePath(location.pathname + location.search, shown?.browseId));
+}
+
+/** Opens a page in this tab, without reloading it. */
 function go(path) {
-  const target = pageOf(path);
+  const target = pageAt(path);
   if (samePage(target, T.page) || heading(target)) return;
+  // YouTube Music needs to be told what the page is; it can't open some by their address.
+  const endpoint = MUSIC ? musicEndpoint(path) : undefined;
+  if (endpoint === null) return;
   T.goingTo = { ...target, at: performance.now() };
-  bridge({ do: 'go', path });
+  bridge({ do: 'go', path, endpoint });
 }
 
 /** Whether we already asked YouTube for this page. */
@@ -154,11 +196,14 @@ const player = {
 
 const STATUS = { 1: 'playing', 2: 'paused', 3: 'buffering', 0: 'idle' }; // not started (-1) and cued (5) count as loading
 
-/** What the player on this video page is doing, in the form the sync logic expects. */
-function readPlayer(page) {
-  const p = bridge({ do: 'read' });
-  // Right after moving to another video the player still shows the old one for a moment.
-  if (!p || p.videoId !== page.videoId) return { mediaId: null, status: 'idle', position: 0, rate: 1, ended: false };
+/**
+ * What the player is doing (`p`, a reading from bridge.js), in the form the
+ * sync logic expects. `videoId` is the video it should be showing: right
+ * after moving to another video page, youtube.com's player still shows the
+ * old one for a moment.
+ */
+function readPlayer(p, videoId = p?.videoId) {
+  if (!p?.videoId || p.videoId !== videoId) return { mediaId: null, status: 'idle', position: 0, rate: 1, ended: false };
   // An ad is like buffering: the room waits for us (up to the server's limit) and nothing is commanded.
   if (p.ad) return { mediaId: p.videoId, status: 'buffering', position: T.lastPosition, rate: 1, ended: false };
   T.lastPosition = p.time;
@@ -170,21 +215,37 @@ function readPlayer(page) {
 /** Every READ_MS: notice page changes, and tell the sync logic what the player is doing. */
 function step() {
   if (!T.controller) return;
-  const page = pageOf(location.href);
+  const page = currentPage();
   if (!samePage(page, T.page)) {
     const before = T.page;
     T.page = page;
-    pageChanged(before, page);
+    if (MUSIC) musicPageChanged(page);
+    else pageChanged(before, page);
   }
   sharePage();
+  if (MUSIC) return listen();
   if (page.kind !== 'watch') return; // looking around: there's no video of ours to follow
+  const p = bridge({ do: 'read' });
+  follow(p, readPlayer(p, page.videoId));
+}
 
-  const { ended, ...reading } = readPlayer(page);
-  if (ended) T.lastEnded = { videoId: reading.mediaId, at: performance.now() };
+/** Whether this tab is looking around youtube.com, away from any video (never on YouTube Music, which plays on). */
+const browsing = () => !MUSIC && T.page.kind !== 'watch';
+
+/**
+ * Whether a reading from bridge.js is of a song about to end by itself.
+ * YouTube Music goes on to the next song at once, so its player may never
+ * be seen in the ended state (youtube.com's waits on an end screen).
+ */
+const ending = (p) => MUSIC && p?.state === 1 && !p.ad && p.duration > 0 && p.duration - p.time < ENDING_S;
+
+/** Gives the sync logic the player's reading, and tells the room when the video has ended. */
+function follow(p, { ended, ...reading }) {
+  if (reading.mediaId && (ended || ending(p))) T.lastEnded = { videoId: reading.mediaId, at: performance.now() };
   T.controller.onSnapshot(reading);
   const state = T.controller.state;
   if (ended && state?.mediaId === reading.mediaId && T.endedSent !== reading.mediaId) {
-    // Lets the room's queue move on, if it has one (it is filled from Tandem's page).
+    // Lets the room's queue move on, if it has one.
     T.endedSent = reading.mediaId;
     T.socket?.emit('media:ended', { mediaId: reading.mediaId });
   }
@@ -238,10 +299,71 @@ function pageChanged(before, after) {
  * shortly before that. (A click on an end-screen video is a pick.)
  */
 function autoplayed(before) {
-  const now = performance.now();
-  return before.kind === 'watch' && T.lastEnded?.videoId === before.videoId
-    && now - T.lastEnded.at < 30_000 && now - T.lastInput > AUTOPLAY_QUIET_MS;
+  return before.kind === 'watch' && autoplayedFrom(before.videoId);
 }
+
+/** Whether the player moving on from this video was autoplay (see autoplayed). */
+function autoplayedFrom(videoId) {
+  const now = performance.now();
+  return T.lastEnded?.videoId === videoId && now - T.lastEnded.at < 30_000 && now - T.lastInput > AUTOPLAY_QUIET_MS;
+}
+
+// ---------- YouTube Music ----------
+
+/** YouTube Music showed another page. The music plays on; your partner's tab follows. */
+function musicPageChanged(after) {
+  const ours = heading(after); // we opened it, for the room or the partner
+  T.goingTo = null;
+  // Songs go through the room's state; only the pages around them are passed on.
+  T.toShare = !ours && after.kind === 'page' ? { page: after, since: performance.now() } : null;
+  sharePage();
+  draw();
+}
+
+/** Every READ_MS on YouTube Music: the player, whatever page is showing. */
+function listen() {
+  const p = bridge({ do: 'read' });
+  if (p?.videoId && p.videoId !== T.track) {
+    const before = T.track;
+    T.track = p.videoId;
+    trackChanged(before, p);
+  }
+  // The room's song just ended here and YouTube Music went on to a song of
+  // its own, but the room's queue has the next one: give the server a moment
+  // to start it, rather than go back to the song that ended.
+  const room = roomVideo(T.controller.state);
+  const waiting = room && p?.videoId !== room && T.queue.length > 0 && T.lastEnded?.videoId === room
+    && performance.now() - T.lastEnded.at < QUEUE_WAIT_MS;
+  if (!waiting) follow(p, readPlayer(p));
+}
+
+/**
+ * YouTube Music's player has another song: the room's, which we put on;
+ * one picked here; or one YouTube Music went on to when the last one ended.
+ * A pick (or YouTube Music's choice) plays for everyone.
+ */
+function trackChanged(before, p) {
+  const c = T.controller;
+  c.playerRestarted(); // a new song starts over, and plays by itself
+  T.lastPosition = 0;
+  const room = roomVideo(c.state);
+  if (p.videoId === room) return;
+  const auto = Boolean(before) && autoplayedFrom(before);
+  if (auto && room && (T.queue.length > 0 || room !== before)) {
+    // The room has its own next song: from its queue (the server starts it
+    // once it hears this one ended), or the one someone else's side moved on
+    // to first. The sync logic puts it on here.
+    if (room === before && T.endedSent !== before) {
+      T.endedSent = before;
+      T.socket?.emit('media:ended', { mediaId: before });
+    }
+    return;
+  }
+  // From where it is: switching a song to its video keeps the place.
+  c.requestLoad('youtube', p.videoId, p.time, auto ? 'autoplay' : 'picked');
+}
+
+// ---------- Your partner's pages ----------
 
 /**
  * Takes your partner's tab to the page this one just opened. YouTube fills
@@ -251,34 +373,44 @@ function autoplayed(before) {
 function sharePage() {
   if (!T.toShare) return;
   const { page, since } = T.toShare;
-  const shown = bridge({ do: 'page' });
-  const ready = shown?.url === page.path;
-  if (!ready && performance.now() - since < SHARE_WAIT_MS) return; // try again on the next step
+  let { path } = page; // YouTube Music's pages are already described as they are sent (currentPage)
+  if (!MUSIC) {
+    const shown = bridge({ do: 'page' });
+    const ready = shown?.url === page.path;
+    if (!ready && performance.now() - since < SHARE_WAIT_MS) return; // try again on the next step
+    if (ready) path = shareablePath(page.path, shown.channelId);
+  }
   T.toShare = null;
-  T.socket?.emit('page:send', { path: ready ? shareablePath(page.path, shown.channelId) : page.path });
+  T.socket?.emit('page:send', { path });
 }
 
 /** The partner opened another page: go there too. */
 function partnerPage({ from, path }) {
   if (!T.room || from === T.room.you) return;
-  const target = pageOf(path);
+  const target = pageAt(path);
   if (target.kind === 'other') return; // not a page we follow
   if (target.kind === 'watch') {
+    if (MUSIC) return; // songs come with the room's state
     // Videos come with the room's state. This only matters when the partner
     // goes back to the room's video while we're looking around.
     const state = T.held ?? T.controller?.state;
     if (target.videoId !== roomVideo(state)) return;
     return go(watchPath(target.videoId, expectedPosition(state, serverNow())));
   }
+  // Someone on YouTube Music looks around while the room plays on. Leaving
+  // the room's video here would stop it (youtube.com does), so stay. (On
+  // youtube.com the room is paused by the time a page comes: leaving a
+  // video pauses it.)
+  const state = T.controller?.state;
+  if (!MUSIC && T.page.kind === 'watch' && T.page.videoId === roomVideo(state) && state.isPlaying) return;
   go(target.path);
 }
 
 /** The room's state, from the server. */
 function deliver(state) {
   remember.set('known', { state, queue: T.queue, options: T.options });
-  const lookingAround = T.page.kind !== 'watch';
   // While looking around, only a new video takes us back to a video page.
-  if (lookingAround && !(roomVideo(state) && roomVideo(state) !== T.leftVideo)) {
+  if (browsing() && !(roomVideo(state) && roomVideo(state) !== T.leftVideo)) {
     T.held = state;
     // The room may wait for us (after a reconnect). We're not loading anything, so we're ready.
     if (state.waitingFor.includes(T.room.you) && T.readyFor !== state.version) {
@@ -314,8 +446,10 @@ function announce(state) {
 
 /** Starting a room while on a video: that video plays for both, from where you are. */
 function shareThisVideo() {
-  if (T.page.kind !== 'watch') return;
   const p = bridge({ do: 'read' });
+  // YouTube Music: whatever song its player has, on any page.
+  if (MUSIC) return void (p?.videoId && T.controller.requestLoad('youtube', p.videoId, p.time));
+  if (T.page.kind !== 'watch') return;
   const position = p?.videoId === T.page.videoId ? p.time : T.page.start;
   T.controller.requestLoad('youtube', T.page.videoId, position);
 }
@@ -445,7 +579,8 @@ async function enterRoom(event, payload, rejoining = false) {
   T.socket.emit('member:away', { away: T.away });
   T.queue = answer.room.queue ?? [];
   T.options = answer.room.options ?? T.options;
-  T.page = pageOf(location.href);
+  T.page = currentPage();
+  if (MUSIC) T.track = bridge({ do: 'read' })?.videoId || null; // what's on now is no change of song
   // After a reconnect the server may have restarted its numbering: start over.
   if (rejoining) {
     T.controller.state = null;
@@ -595,7 +730,7 @@ async function sendStats() {
   }
   const rtt = Math.round(performance.now() - t0);
   const state = T.controller?.state;
-  const drift = T.page.kind === 'watch' && state && isRolling(state, serverNow()) ? T.controller.drift() : null;
+  const drift = !browsing() && state && isRolling(state, serverNow()) ? T.controller.drift() : null;
   T.socket.emit('stats:send', { rtt, drift });
   T.stats.set(T.room.you, { rtt, drift, at: performance.now() });
   drawChat();
@@ -642,7 +777,7 @@ function toast(text) {
   if (T.room) return notify(text);
   const host = document.createElement('tandem-toast');
   host.attachShadow({ mode: 'open' }).innerHTML = `<style>
-    :host { all: initial; position: fixed; right: 16px; bottom: 16px; z-index: 2000; }
+    :host { all: initial; position: fixed; right: 16px; bottom: ${BOTTOM}px; z-index: 2000; }
     p { margin: 0; padding: 9px 14px; background: rgba(14, 14, 18, .94); color: #f5f5f6; border-radius: 999px;
       font: 500 13px/1.35 Roboto, Arial, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
   </style><p></p>`;
@@ -665,12 +800,13 @@ function startController() {
     clientId: T.room.you,
     // Drift is corrected by playing slightly faster or slower, as for VLC:
     // youtube.com's player takes any speed, unlike the embedded one.
-    mode: 'local',
+    // YouTube Music's doesn't (only 0.25, 0.5, … 2), so there it's by seeking.
+    mode: MUSIC ? 'youtube' : 'local',
     now: serverNow,
     send: (event, payload) => T.socket?.emit(event, payload),
   });
   T.timers.push(setInterval(step, READ_MS));
-  T.timers.push(setInterval(() => { if (T.page.kind === 'watch') T.controller?.tick(); }, SYNC_CONFIG.tickMs));
+  T.timers.push(setInterval(() => { if (!browsing()) T.controller?.tick(); }, SYNC_CONFIG.tickMs));
   T.timers.push(setInterval(draw, 500));
   T.timers.push(setInterval(sendStats, STATS_MS));
 }
@@ -713,9 +849,9 @@ function statusLine() {
   if (!T.room) return '';
   if (T.connection !== 'online') return T.connection === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
   const state = T.held ?? T.controller?.state;
-  if (!state?.mediaId) return 'Open a video and it plays for both of you';
+  if (!state?.mediaId) return MUSIC ? 'Play a song and it plays for both of you' : 'Open a video and it plays for both of you';
   if (state.mediaType !== 'youtube') return 'Your partner is playing a file from their computer; open Tandem to watch it';
-  if (T.page.kind !== 'watch') return 'Looking around. Pick a video and it plays for both of you';
+  if (browsing()) return 'Looking around. Pick a video and it plays for both of you';
   const now = serverNow();
   const nameOf = (id) => (id === T.room.you ? 'you' : T.room.members.find((m) => m.id === id)?.name ?? 'your partner');
   if (state.waitingFor.length) return `Waiting for ${state.waitingFor.map(nameOf).join(' and ')} to load…`;
@@ -765,7 +901,8 @@ function status() {
     partners: T.room ? partnersPresence() : 'offline',
     chosen: chosenBy(T.held ?? T.controller?.state),
     away: T.away,
-    invite: T.room ? inviteLink(T.room.code, roomVideo(T.held ?? T.controller?.state)) : null,
+    invite: T.room ? inviteLink(T.room.code, roomVideo(T.held ?? T.controller?.state), location.origin) : null,
+    thing: THING,
     options: T.options,
     resumable: resumable(),
     typing: typingLine(),
@@ -792,8 +929,11 @@ function status() {
 // It sits in its own shadow root so YouTube's styles don't reach it.
 let badge = null;
 
+/** How high the badge sits: on YouTube Music, above its player bar (72 px) along the bottom. */
+const BOTTOM = MUSIC ? 88 : 16;
+
 const BADGE_STYLE = `
-  :host { all: initial; position: fixed; right: 16px; bottom: 16px; z-index: 2000;
+  :host { all: initial; position: fixed; right: 16px; bottom: ${BOTTOM}px; z-index: 2000;
     color: #f5f5f6; font: 500 13px/1.35 Roboto, Arial, sans-serif; }
   .wrap { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .pill { display: flex; align-items: center; gap: 8px; max-width: 460px; padding: 5px 5px 5px 14px;
@@ -819,7 +959,7 @@ const BADGE_STYLE = `
     font-size: 11px; font-weight: 700; text-align: center; }
   .count:empty { display: none; }
 
-  .panel { display: flex; flex-direction: column; width: 320px; max-height: min(460px, calc(100vh - 100px));
+  .panel { display: flex; flex-direction: column; width: 320px; max-height: min(460px, calc(100vh - ${BOTTOM + 84}px));
     background: rgba(14, 14, 18, .97); border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, .45); overflow: hidden; }
   .panel[hidden] { display: none; }
@@ -967,7 +1107,7 @@ function drawChat() {
   const upNext = T.queue.length ? ` · ${T.queue.length} up next` : '';
 
   const chosen = chosenBy(T.held ?? T.controller?.state);
-  $('.chosen').textContent = chosen ? `This video: ${chosen}${upNext}` : upNext.slice(3);
+  $('.chosen').textContent = chosen ? `This ${THING}: ${chosen}${upNext}` : upNext.slice(3);
 
   const log = $('.log');
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -1060,7 +1200,7 @@ async function handle(message) {
       const c = T.controller;
       return c && {
         serverNow: serverNow(), state: c.state, snapshot: c.snapshot, drift: c.drift(), told: c.told,
-        guardFor: c.guardUntil - serverNow(), nudging: c.nudging, page: T.page, held: T.held,
+        guardFor: c.guardUntil - serverNow(), nudging: c.nudging, page: T.page, track: T.track, held: T.held,
         leftVideo: T.leftVideo, clockOffset: T.clockOffset, hidden: document.hidden,
       };
     }
@@ -1073,7 +1213,7 @@ async function handle(message) {
 // ---------- Start ----------
 
 T.compact = remember.get('compact') === true;
-// The person's own clicks and key presses, to tell their video picks from YouTube's autoplay.
+// The person's own clicks and key presses, to tell their picks from YouTube's autoplay.
 for (const type of ['pointerdown', 'keydown']) {
   window.addEventListener(type, (event) => { if (event.isTrusted) T.lastInput = performance.now(); }, true);
 }
@@ -1103,6 +1243,6 @@ if (invited && invited !== savedRoom) {
     if (T.room && T.settings?.name === 'Guest') notify("You're in as Guest. Set your name in Tandem's popup.", 8000);
   });
 } else if (savedRoom) {
-  if (T.page.kind !== 'watch') T.leftVideo = remember.get('leftVideo') ?? undefined;
+  if (browsing()) T.leftVideo = remember.get('leftVideo') ?? undefined;
   enterRoom('room:join', { code: savedRoom }, true);
 }
