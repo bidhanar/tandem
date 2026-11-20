@@ -1,6 +1,6 @@
 {
   "name": "tandem-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Tandem's browser extension: watch on youtube.com itself, in step with your partner.",
   "license": "GPL-3.0-or-later",

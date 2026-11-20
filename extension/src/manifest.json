@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tandem",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Watch YouTube or listen to YouTube Music together with someone far away: each of you on the site itself, in step.",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": {
